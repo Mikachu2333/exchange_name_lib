@@ -94,7 +94,7 @@ impl GetPathInfo {
         };
 
         if !is_file {
-            return MetadataCollection {
+            MetadataCollection {
                 name: {
                     get_string_closure(&file_path.file_stem(), false)
                         + get_string_closure(&file_path.extension(), true).as_ref()
@@ -106,9 +106,9 @@ impl GetPathInfo {
                         None => PathBuf::new(),
                     }
                 },
-            };
+            }
         } else {
-            return MetadataCollection {
+            MetadataCollection {
                 name: get_string_closure(&file_path.file_stem(), false),
                 ext: get_string_closure(&file_path.extension(), true),
                 parent_dir: {
@@ -117,7 +117,7 @@ impl GetPathInfo {
                         None => PathBuf::new(),
                     }
                 },
-            };
+            }
         }
     }
 

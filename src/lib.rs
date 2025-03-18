@@ -101,7 +101,7 @@ pub extern "C" fn exchange(path1: *const c_char, path2: *const c_char) -> i32 {
         all_infos.f2.packed_info.ext
     );
     */
-    
+
     if all_infos.f1.is_file & all_infos.f2.is_file {
         //all files
         NameExchange::rename_each(&all_infos, false, true)
@@ -166,7 +166,7 @@ mod tests {
         let _test_path1 = trans(r"file1.ext1".to_owned());
         let _test_path2 = trans(r"file1.ext1".to_owned());
 
-        let mut a: Vec<CString> = args().map(|f| trans(f)).collect();
+        let mut a: Vec<CString> = args().map(trans).collect();
         a.remove(0);
 
         let run_result = super::exchange(a[1].as_ptr(), a[2].as_ptr());

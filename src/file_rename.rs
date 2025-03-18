@@ -98,9 +98,9 @@ impl NameExchange {
             match x {
                 Ok(_) => 0,
                 Err(x) => match x.kind() {
-                    std::io::ErrorKind::PermissionDenied => return 2_i32,
-                    std::io::ErrorKind::AlreadyExists => return 3_i32,
-                    _ => return 255_i32,
+                    std::io::ErrorKind::PermissionDenied => 2_i32,
+                    std::io::ErrorKind::AlreadyExists => 3_i32,
+                    _ => 255_i32,
                 },
             }
         };
@@ -111,7 +111,7 @@ impl NameExchange {
             let rename_2_result = get_err_or_ok(std::fs::rename(&path2, &final_name2));
             if rename_1_result != 0 {
                 println!("FAILED: \n{:?} => {:?}", &path1, &final_name1);
-                return rename_1_result;
+                rename_1_result
             } else if rename_2_result != 0 {
                 println!("FAILED: \n{:?} => {:?}", &path2, &final_name2);
                 return rename_2_result;
@@ -127,7 +127,7 @@ impl NameExchange {
             let rename_3_result = get_err_or_ok(std::fs::rename(&tmp_name2, &final_name2));
             if rename_1_result != 0 {
                 println!("FAILED: \n{:?} => {:?}", &path2, &tmp_name2);
-                return rename_1_result;
+                rename_1_result
             } else if rename_2_result != 0 {
                 println!("FAILED: \n{:?} => {:?}", &path1, &final_name1);
                 return rename_2_result;
