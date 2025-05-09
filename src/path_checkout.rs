@@ -28,19 +28,15 @@ pub struct GetPathInfo {
 impl GetPathInfo {
     /// 校验路径是否存在；如果是相对路径，尝试转化为绝对路径
     pub fn if_exist(&mut self, dir: &Path) -> (bool, bool) {
-        if self.path1.is_relative() {
-            self.path1 = dir.join(self.path1.clone().file_name().unwrap_or(OsStr::new("")));
-        }
-        if self.path2.is_relative() {
-            self.path2 = dir.join(self.path2.clone().file_name().unwrap_or(OsStr::new("")));
-        }
-        /*
-        println!(
-            "Path1: {}\tPath2: {}",
-            self.path1.display(),
-            self.path2.display()
-        ); //test
-        */
+        let make_absolute = |path: &mut PathBuf| {
+            if path.is_relative() {
+                *path = dir.join(path.file_name().unwrap_or(OsStr::new("")));
+            }
+        };
+
+        make_absolute(&mut self.path1);
+        make_absolute(&mut self.path2);
+
         (self.path1.exists(), self.path2.exists())
     }
 
@@ -55,19 +51,13 @@ impl GetPathInfo {
 
     ///检测是否存在包含关系（父子目录问题）
     pub fn if_root(&self) -> u8 {
-        //下面必须统一取小写或大写，因为rust的“contains()”大小写敏感
         let path1 = self.path1.to_string_lossy().to_ascii_lowercase();
         let path2 = self.path2.to_string_lossy().to_ascii_lowercase();
 
-        if path1.contains(&path2) {
-            //path1 should be renamed first
-            1
-        } else if path2.contains(&path1) {
-            //path2 should be renamed first
-            2
-        } else {
-            //no-influence
-            0
+        match (path1.contains(&path2), path2.contains(&path1)) {
+            (true, _) => 1, // path1 contains path2
+            (_, true) => 2, // path2 contains path1
+            _ => 0,         // no containment
         }
     }
 
@@ -130,4 +120,13 @@ impl GetPathInfo {
         let metadata2 = GetPathInfo::get_info(&self.path2, is_file2);
         (metadata1, metadata2)
     }
+}
+impl Default for GetPathInfo {
+    fn default() -> Self {
+        Self {
+            path1: PathBuf::new(),
+            path2: PathBuf::new(),
+        }
+    }
+    
 }

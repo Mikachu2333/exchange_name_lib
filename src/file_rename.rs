@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 
 use crate::path_checkout::MetadataCollection;
 
-const GUID: &str = "2A96D0978ECC9709298A";
+const GUID: &str = "1C6FD285BEDCC274F";
 
 #[derive(Debug)]
 pub struct PrepareName {
@@ -94,51 +94,49 @@ impl NameExchange {
             tmp_name2 = self.f2.exchange.pre_path.clone();
         }
 
-        let get_err_or_ok = |x: std::io::Result<()>| -> i32 {
-            match x {
-                Ok(_) => 0,
-                Err(x) => match x.kind() {
-                    std::io::ErrorKind::PermissionDenied => 2_i32,
-                    std::io::ErrorKind::AlreadyExists => 3_i32,
-                    _ => 255_i32,
-                },
-            }
-        };
         //1 first
         if is_nested {
             //如果存在相关性（父子目录或文件），后面的exit(3)是为了核验是否有权限改名
-            let rename_1_result = get_err_or_ok(std::fs::rename(&path1, &final_name1));
-            let rename_2_result = get_err_or_ok(std::fs::rename(&path2, &final_name2));
+            let rename_1_result = Self::handle_rename(&path1, &final_name1);
             if rename_1_result != 0 {
-                println!("FAILED: \n{:?} => {:?}", &path1, &final_name1);
-                rename_1_result
-            } else if rename_2_result != 0 {
-                println!("FAILED: \n{:?} => {:?}", &path2, &final_name2);
-                return rename_2_result;
-            } else {
-                println!("SUCCESS: \n{:?} => {:?}", &path1, &final_name1);
-                println!("SUCCESS: \n{:?} => {:?}", &path2, &final_name2);
-                return 0;
+                return rename_1_result;
             }
+            let rename_2_result = Self::handle_rename(&path2, &final_name2);
+            if rename_2_result != 0 {
+                return rename_2_result;
+            }
+            return 0;
         } else {
             //不存在相关性：正常操作
-            let rename_1_result = get_err_or_ok(std::fs::rename(&path2, &tmp_name2));
-            let rename_2_result = get_err_or_ok(std::fs::rename(&path1, &final_name1));
-            let rename_3_result = get_err_or_ok(std::fs::rename(&tmp_name2, &final_name2));
+            let rename_1_result = Self::handle_rename(&path2, &tmp_name2);
             if rename_1_result != 0 {
-                println!("FAILED: \n{:?} => {:?}", &path2, &tmp_name2);
-                rename_1_result
-            } else if rename_2_result != 0 {
-                println!("FAILED: \n{:?} => {:?}", &path1, &final_name1);
+                return rename_1_result;
+            }
+            let rename_2_result = Self::handle_rename(&path1, &final_name1);
+            if rename_2_result != 0 {
                 return rename_2_result;
-            } else if rename_3_result != 0 {
-                println!("FAILED: \n{:?} => {:?}", &tmp_name2, &final_name2);
+            }
+            let rename_3_result = Self::handle_rename(&tmp_name2, &final_name2);
+            if rename_3_result != 0 {
                 return rename_3_result;
-            } else {
-                println!("SUCCESS: \n{:?} => {:?}", &path2, &tmp_name2);
-                println!("SUCCESS: \n{:?} => {:?}", &path1, &final_name1);
-                println!("SUCCESS: \n{:?} => {:?}", &tmp_name2, &final_name2);
-                return 0;
+            }
+            return 0;
+        }
+    }
+
+    fn handle_rename(from: &Path, to: &Path) -> i32 {
+        match std::fs::rename(from, to) {
+            Ok(_) => {
+                println!("SUCCESS: \n{:?} => {:?}\n", from, to);
+                0
+            }
+            Err(e) => {
+                println!("FAILED: \n{:?} => {:?}", from, to);
+                match e.kind() {
+                    std::io::ErrorKind::PermissionDenied => 2,
+                    std::io::ErrorKind::AlreadyExists => 3,
+                    _ => 255,
+                }
             }
         }
     }

@@ -1,2 +1,4 @@
 [build]
 target = "i686-pc-windows-msvc"
+[alias]
+t = "test -- --nocapture"

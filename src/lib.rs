@@ -87,20 +87,19 @@ pub extern "C" fn exchange(path1: *const c_char, path2: *const c_char) -> i32 {
     //1 -> file1 should be renamed first
     let mode = packed_path.if_root();
 
-    /*
-    println!(//test
+    println!(
+        //test
         "f1: {}\t{}\t{}",
         all_infos.f1.packed_info.parent_dir.display(),
-        all_infos.f1.packed_info.name,
-        all_infos.f1.packed_info.ext
+        &all_infos.f1.packed_info.name,
+        &all_infos.f1.packed_info.ext
     );
     println!(
         "f2: {}\t{}\t{}",
         all_infos.f2.packed_info.parent_dir.display(),
-        all_infos.f2.packed_info.name,
-        all_infos.f2.packed_info.ext
+        &all_infos.f2.packed_info.name,
+        &all_infos.f2.packed_info.ext
     );
-    */
 
     if all_infos.f1.is_file & all_infos.f2.is_file {
         //all files
@@ -142,34 +141,37 @@ pub extern "C" fn exchange(path1: *const c_char, path2: *const c_char) -> i32 {
 
 #[cfg(test)]
 mod tests {
-    use std::env::args;
-    use std::{ffi::CString, fs::remove_file};
+    use std::{
+        ffi::CString,
+        fs::remove_file,
+        path::{Path, PathBuf},
+    };
 
-    fn clear_olds() {
-        let _ = remove_file("file1.ext1");
-        let _ = remove_file("file2.ext2");
-        let _ = remove_file("file2.ext1");
-        let _ = remove_file("file1.ext2");
-
-        let mut new_file1 = std::fs::File::create("file1.ext1").unwrap();
-        let mut new_file2 = std::fs::File::create("file2.ext2").unwrap();
+    fn clear_olds() -> (PathBuf, PathBuf) {
+        let file1 = Path::new(r"D:\languagelearning\Rust\exchange_name_lib\src\$$.ext1");
+        let file2 = Path::new(r"D:\languagelearning\Rust\exchange_name_lib\src\$$(精品).ext2");
+        let f_f1 = Path::new(r"D:\languagelearning\Rust\exchange_name_lib\src\$$.ext2");
+        let f_f2 = Path::new(r"D:\languagelearning\Rust\exchange_name_lib\src\$$(精品).ext1");
+        let _ = remove_file(&file1).is_ok();
+        let _ = remove_file(&file2).is_ok();
+        let _ = remove_file(&f_f1).is_ok();
+        let _ = remove_file(&f_f2).is_ok();
+        let mut new_file1 = std::fs::File::create(&file1).unwrap();
+        let mut new_file2 = std::fs::File::create(&file2).unwrap();
         let _ = std::io::Write::write_all(&mut new_file1, b"");
         let _ = std::io::Write::write_all(&mut new_file2, b"");
+        return (file1.to_path_buf(), file2.to_path_buf());
     }
+
     #[test]
     fn it_works() {
-        clear_olds();
+        let (file1, file2) = clear_olds();
         // 0 => Success，1 => No Exist
         // 2 => Permission Denied，3 => New File Already Exists
+        let trans = |s: PathBuf| CString::new(s.to_str().unwrap()).unwrap();
+        let test_path1 = trans(file1);
+        let test_path2 = trans(file2);
 
-        let trans = |s: String| CString::new(s).unwrap();
-        let _test_path1 = trans(r"file1.ext1".to_owned());
-        let _test_path2 = trans(r"file1.ext1".to_owned());
-
-        let mut a: Vec<CString> = args().map(trans).collect();
-        a.remove(0);
-
-        let run_result = super::exchange(a[1].as_ptr(), a[2].as_ptr());
-        println!("{}", run_result);
+        super::exchange(test_path1.as_ptr(), test_path2.as_ptr());
     }
 }
