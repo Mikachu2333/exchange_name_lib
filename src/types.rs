@@ -81,7 +81,6 @@ impl Default for FileInfos {
     }
 }
 
-
 /// 处理两个路径的结构体，用于路径检查和操作
 #[derive(Debug)]
 pub struct GetPathInfo {
@@ -100,8 +99,6 @@ impl Default for GetPathInfo {
     }
 }
 
-
-
 /// 文件交换名称的主要结构体
 ///
 /// 包含两个文件的完整信息，用于执行重命名操作
@@ -111,7 +108,6 @@ pub struct NameExchange {
     /// 第二个文件的完整信息
     pub f2: FileInfos,
 }
-
 
 /// 重命名流程内部使用的错误类型
 #[derive(Debug, Clone)]

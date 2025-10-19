@@ -1,9 +1,6 @@
-use std::{
-    path::{Path, PathBuf},
-};
+use std::path::{Path, PathBuf};
 
 use crate::types::*;
-
 
 /// 改名逻辑主体整合
 impl NameExchange {
@@ -32,22 +29,26 @@ impl NameExchange {
     ///
     /// ### 返回值
     /// 返回元组 `(临时文件路径, 最终文件路径)`
-    pub fn make_name(dir: &Path, other_name: &String, ext: &String) -> (PathBuf, PathBuf) {
-        let mut dir = dir.to_path_buf();
-        let ext = ext.to_string();
-        let mut other_name = other_name.to_string();
-        let mut new_name = dir.to_path_buf(); //C:/    (a)
+    pub fn make_name(dir: &Path, other_name: &str, ext: &str) -> (PathBuf, PathBuf) {
+        let mut temp_path = dir.to_path_buf();
+        let mut final_path = dir.to_path_buf();
 
-        //任意长字符串用作区分
-        let mut temp_additional_name = crate::types::GUID.to_string();
-        temp_additional_name.push_str(&ext); //AAAAA.txt
-        dir.push(&temp_additional_name); //C:/AAAAA.txt    (b)
-        let new_pre_name = dir.to_path_buf();
+        // 任意长字符串用作区分
+        let mut temp_name = crate::types::GUID.to_string();
+        temp_name.push_str(ext);
+        temp_path.push(temp_name);
 
-        other_name.push_str(&ext); //AnotherFileName.txt
-        new_name.push(&other_name); //C:/AnotherFileName.txt    (a)
+        let final_component = if ext.is_empty() {
+            other_name.to_owned()
+        } else {
+            format!("{}{}", other_name, ext)
+        };
 
-        (new_pre_name, new_name)
+        if !final_component.is_empty() {
+            final_path.push(final_component);
+        }
+
+        (temp_path, final_path)
     }
 
     /// 改名具体执行部分
@@ -104,14 +105,8 @@ impl NameExchange {
     /// 返回 `Ok(())` 表示成功，`Err(RenameError)` 表示具体错误
     fn handle_rename(from: &Path, to: &Path) -> Result<(), RenameError> {
         match std::fs::rename(from, to) {
-            Ok(_) => {
-                println!("SUCCESS: \n{:?} => {:?}\n", from, to);
-                Ok(())
-            }
-            Err(e) => {
-                println!("FAILED: \n{:?} => {:?}\nERROR: {:?}", from, to, e);
-                Err(RenameError::from(e))
-            }
+            Ok(_) => Ok(()),
+            Err(e) => Err(RenameError::from(e)),
         }
     }
 }

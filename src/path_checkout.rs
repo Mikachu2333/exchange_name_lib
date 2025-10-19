@@ -5,31 +5,8 @@ use std::{
 
 use crate::types::*;
 
-
 /// 所有路径相关的操作
 impl GetPathInfo {
-    /// 校验路径是否存在，并处理相对路径
-    ///
-    /// 如果路径是相对路径，会尝试将其转换为相对于给定目录的绝对路径
-    ///
-    /// ### 参数
-    /// * `dir` - 基准目录，用于将相对路径转换为绝对路径
-    ///
-    /// ### 返回值
-    /// 返回包含两个布尔值的元组 `(path1存在, path2存在)`
-    pub fn if_exist(&mut self, dir: &Path) -> (bool, bool) {
-        let make_absolute = |path: &mut PathBuf| {
-            if path.is_relative() {
-                *path = dir.join(path.file_name().unwrap_or(OsStr::new("")));
-            }
-        };
-
-        make_absolute(&mut self.path1);
-        make_absolute(&mut self.path2);
-
-        (self.path1.exists(), self.path2.exists())
-    }
-
     /// 判断路径是文件还是目录
     ///
     /// ### 返回值
@@ -49,7 +26,10 @@ impl GetPathInfo {
     /// * `true` - 两个路径在同一个父目录
     /// * `false` - 两个路径在不同的父目录
     pub fn if_same_dir(&self) -> bool {
-        self.path1.parent().unwrap() == self.path2.parent().unwrap()
+        match (self.path1.parent(), self.path2.parent()) {
+            (Some(parent1), Some(parent2)) => parent1 == parent2,
+            _ => false,
+        }
     }
 
     /// 检测两个路径之间是否存在包含关系（父子目录问题）
@@ -84,7 +64,11 @@ impl GetPathInfo {
     /// * `false` - 不存在父子关系
     fn path_is_parent(potential_parent: &Path, potential_child: &Path) -> bool {
         // 尝试确定 child 相对于 parent 的路径
-        potential_child.strip_prefix(potential_parent).is_ok()
+        if let Ok(relative) = potential_child.strip_prefix(potential_parent) {
+            !relative.as_os_str().is_empty()
+        } else {
+            false
+        }
     }
 
     /// 获取文件或目录的元数据信息
