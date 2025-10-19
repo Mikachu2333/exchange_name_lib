@@ -5,6 +5,15 @@ use std::{
 
 use crate::types::{GetPathInfo, NameExchange, RenameError, DEBUG_MODE};
 
+/// Swap names of two files or directories
+///
+/// ### Parameters
+/// * `path1` - First file or directory path
+/// * `path2` - Second file or directory path
+///
+/// ### Return Value
+/// * `Ok(())` - Successfully swapped
+/// * `Err(RenameError)` - Error information
 pub fn exchange_paths(path1: PathBuf, path2: PathBuf) -> Result<(), RenameError> {
     let base_dir = resolve_base_dir()?;
 
@@ -87,6 +96,11 @@ pub fn exchange_paths(path1: PathBuf, path2: PathBuf) -> Result<(), RenameError>
     }
 }
 
+/// Resolve base directory path
+///
+/// ### Return Value
+/// * `Ok(PathBuf)` - Base directory path
+/// * `Err(RenameError)` - Resolution failure
 fn resolve_base_dir() -> Result<PathBuf, RenameError> {
     if let Ok(exe) = env::current_exe() {
         if let Some(parent) = exe.parent() {
@@ -99,6 +113,14 @@ fn resolve_base_dir() -> Result<PathBuf, RenameError> {
     })
 }
 
+/// Resolve and normalize path
+///
+/// ### Parameters
+/// * `path` - Original path
+/// * `base_dir` - Base directory path
+///
+/// ### Return Value
+/// Returns tuple `(whether path exists, normalized path)`
 fn resolve_path(path: &Path, base_dir: &Path) -> (bool, PathBuf) {
     if path.as_os_str().is_empty() {
         return (false, path.to_path_buf());

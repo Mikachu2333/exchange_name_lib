@@ -11,13 +11,18 @@ use crate::types::RenameError;
 
 #[no_mangle]
 /// # Safety
-/// 最终暴露的执行函数，传入两个路径String，返回一个状态码
+/// C interface function for swapping names of two files or directories
 ///
-/// 0 => Success，1 => No Exist
+/// ### Parameters
+/// * `path1` - First file or directory path (C string pointer)
+/// * `path2` - Second file or directory path (C string pointer)
 ///
-/// 2 => Permission Denied，3 => New File Already Exists
-///
-/// 255 => Unknown Error
+/// ### Return Value
+/// * `0` - Success
+/// * `1` - File does not exist
+/// * `2` - Permission denied
+/// * `3` - Target file already exists
+/// * `255` - Unknown error
 pub unsafe extern "C" fn exchange(path1: *const c_char, path2: *const c_char) -> i32 {
     unsafe { convert_inputs(path1, path2) }
         .and_then(|(path1, path2)| exchange_paths(path1, path2))
@@ -28,6 +33,15 @@ pub unsafe extern "C" fn exchange(path1: *const c_char, path2: *const c_char) ->
         })
 }
 
+/// Rust interface function for swapping names of two files or directories
+///
+/// ### Parameters
+/// * `path1` - First file or directory path
+/// * `path2` - Second file or directory path
+///
+/// ### Return Value
+/// * `Ok(())` - Success
+/// * `Err(RenameError)` - Error information
 pub fn exchange_rs(path1: &Path, path2: &Path) -> Result<(), types::RenameError> {
     exchange_paths(path1.to_path_buf(), path2.to_path_buf())
 }
