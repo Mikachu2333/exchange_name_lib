@@ -7,7 +7,7 @@ pub const GUID: &str = "E642A71D305C343884C";
 /// 存储文件或目录的元数据信息
 ///
 /// 包含文件或目录的名称、扩展名和父目录路径
-#[derive(Debug)]
+#[derive(Default, Debug, Clone)]
 pub struct MetadataCollection {
     /// 文件名或目录名（不包含扩展名）
     pub name: String,
@@ -17,21 +17,10 @@ pub struct MetadataCollection {
     pub parent_dir: PathBuf,
 }
 
-impl Default for MetadataCollection {
-    /// 创建默认的元数据集合，所有字段为空
-    fn default() -> Self {
-        Self {
-            name: "".to_owned(),
-            ext: "".to_owned(),
-            parent_dir: PathBuf::new(),
-        }
-    }
-}
-
 /// 存储文件重命名所需的路径信息
 ///
 /// 包含原始路径、新路径和临时过渡路径
-#[derive(Debug)]
+#[derive(Default, Debug, Clone)]
 pub struct PrepareName {
     /// 文件或目录的原始路径
     pub original_path: PathBuf,
@@ -40,21 +29,11 @@ pub struct PrepareName {
     /// 重命名过程中使用的临时路径
     pub pre_path: PathBuf,
 }
-impl Default for PrepareName {
-    /// 创建包含空路径的默认实例
-    fn default() -> Self {
-        Self {
-            original_path: PathBuf::new(),
-            new_path: PathBuf::new(),
-            pre_path: PathBuf::new(),
-        }
-    }
-}
 
 /// 存储文件完整信息的结构体
 ///
 /// 包含文件存在状态、类型信息和重命名所需的路径数据
-#[derive(Debug)]
+#[derive(Default, Debug, Clone)]
 pub struct FileInfos {
     /// 文件或目录是否存在
     pub is_exist: bool,
@@ -65,38 +44,14 @@ pub struct FileInfos {
     /// 重命名所需的路径信息
     pub exchange: PrepareName,
 }
-impl Default for FileInfos {
-    /// 创建默认的文件信息实例，所有状态为初始值
-    fn default() -> Self {
-        Self {
-            is_exist: false,
-            is_file: false,
-            packed_info: MetadataCollection {
-                ..Default::default()
-            },
-            exchange: PrepareName {
-                ..Default::default()
-            },
-        }
-    }
-}
 
 /// 处理两个路径的结构体，用于路径检查和操作
-#[derive(Debug)]
+#[derive(Default, Debug, Clone)]
 pub struct GetPathInfo {
     /// 第一个文件或目录路径
     pub path1: PathBuf,
     /// 第二个文件或目录路径
     pub path2: PathBuf,
-}
-impl Default for GetPathInfo {
-    /// 创建包含空路径的默认实例
-    fn default() -> Self {
-        Self {
-            path1: PathBuf::new(),
-            path2: PathBuf::new(),
-        }
-    }
 }
 
 /// 文件交换名称的主要结构体
