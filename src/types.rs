@@ -3,6 +3,7 @@ use std::{io, path::PathBuf};
 /// 用于生成临时文件名的唯一标识符
 /// 这个GUID用于创建临时文件名，确保不会与现有文件冲突
 pub const GUID: &str = "E642A71D305C343884C";
+pub const DEBUG_MODE: bool = cfg!(debug_assertions);
 
 /// 存储文件或目录的元数据信息
 ///

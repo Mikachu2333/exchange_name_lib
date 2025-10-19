@@ -3,7 +3,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use crate::types::{GetPathInfo, NameExchange, RenameError};
+use crate::types::{GetPathInfo, NameExchange, RenameError, DEBUG_MODE};
 
 pub fn exchange_paths(path1: PathBuf, path2: PathBuf) -> Result<(), RenameError> {
     let base_dir = resolve_base_dir()?;
@@ -104,19 +104,17 @@ fn resolve_path(path: &Path, base_dir: &Path) -> (PathBuf, bool) {
         return (path.to_path_buf(), false);
     }
 
-    let mut path = {
-        let temp = path
-            .to_str()
-            .unwrap_or("")
-            .replace("\\\\", "\\")
-            .replace("\\", "/")
-            .replace("//", "/");
-        PathBuf::from(temp)
-    };
+    let mut path = path.to_path_buf();
 
     #[cfg(windows)]
     {
         use std::path::{Component, Prefix};
+
+        path = {
+            let temp = path.to_str().unwrap_or("").replace("/", "\\");
+            PathBuf::from(temp)
+        };
+
         let is_absolute = {
             let mut components = path.components();
             if let Some(Component::Prefix(prefix_component)) = components.next() {
@@ -143,9 +141,7 @@ fn resolve_path(path: &Path, base_dir: &Path) -> (PathBuf, bool) {
             if path.starts_with("~") {
                 if let Ok(home_dir) = env::var("USERPROFILE") {
                     let mut new_path = PathBuf::from(home_dir);
-                    let remaining = path
-                        .strip_prefix("~/")
-                        .ok();
+                    let remaining = path.strip_prefix("~/").ok();
                     if let Some(rem) = remaining {
                         new_path.push(rem);
                         path = new_path;
@@ -164,6 +160,11 @@ fn resolve_path(path: &Path, base_dir: &Path) -> (PathBuf, bool) {
 
     #[cfg(not(windows))]
     {
+        path = {
+            let temp = path.to_str().unwrap_or("").replace("\\", "/");
+            PathBuf::from(temp)
+        };
+
         if !path.is_absolute() {
             if path.starts_with("~") {
                 if let Ok(home_dir) = env::var("HOME") {
@@ -181,7 +182,11 @@ fn resolve_path(path: &Path, base_dir: &Path) -> (PathBuf, bool) {
         }
     }
 
-    let canonical = path.canonicalize().unwrap_or(path);
+    if DEBUG_MODE {
+        dbg!(&path);
+    }
+
+    let canonical = path.canonicalize().unwrap_or(path.to_path_buf());
     let exists = canonical.exists();
     (canonical, exists)
 }
