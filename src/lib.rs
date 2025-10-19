@@ -70,8 +70,8 @@ mod tests {
 
     fn clear_olds() -> (PathBuf, PathBuf) {
         (
-            PathBuf::from(r"\\wsl.localhost\Debian\home\LinkChou\新建 Text 源文件.txt"),
-            PathBuf::from(r"\\wsl.localhost\Debian\home\LinkChou\新建 XLSX 工作表.xlsx"),
+            PathBuf::from(r"\\wsl.localhost\Debian\home\LinkChou\1.ext1"),
+            PathBuf::from(r"2.ext2"),
         )
     }
 

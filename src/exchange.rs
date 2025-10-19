@@ -8,9 +8,9 @@ use crate::types::{GetPathInfo, NameExchange, RenameError, DEBUG_MODE};
 pub fn exchange_paths(path1: PathBuf, path2: PathBuf) -> Result<(), RenameError> {
     let base_dir = resolve_base_dir()?;
 
-    let (path1, exists1) = resolve_path(&path1, &base_dir);
-    let (path2, exists2) = resolve_path(&path2, &base_dir);
-
+    let (exists1, path1) = resolve_path(&path1, &base_dir);
+    let (exists2, path2) = resolve_path(&path2, &base_dir);
+    dbg!(exists1, &path1, exists2, &path2);
     if !exists1 || !exists2 {
         return Err(RenameError::NotExists);
     }
@@ -99,9 +99,9 @@ fn resolve_base_dir() -> Result<PathBuf, RenameError> {
     })
 }
 
-fn resolve_path(path: &Path, base_dir: &Path) -> (PathBuf, bool) {
+fn resolve_path(path: &Path, base_dir: &Path) -> (bool, PathBuf) {
     if path.as_os_str().is_empty() {
-        return (path.to_path_buf(), false);
+        return (false, path.to_path_buf());
     }
 
     let mut path = path.to_path_buf();
@@ -119,9 +119,16 @@ fn resolve_path(path: &Path, base_dir: &Path) -> (PathBuf, bool) {
             let mut components = path.components();
             if let Some(Component::Prefix(prefix_component)) = components.next() {
                 let has_root_dir = matches!(components.next(), Some(Component::RootDir));
+                if DEBUG_MODE {
+                    dbg!(has_root_dir);
+                }
                 if !has_root_dir {
                     false
                 } else {
+                    if DEBUG_MODE {
+                        dbg!(prefix_component.kind());
+                    }
+
                     matches!(
                         prefix_component.kind(),
                         Prefix::VerbatimUNC(..)
@@ -139,7 +146,7 @@ fn resolve_path(path: &Path, base_dir: &Path) -> (PathBuf, bool) {
 
         if !is_absolute {
             if path.starts_with("~") {
-                if let Ok(home_dir) = env::var("USERPROFILE") {
+                if let Ok(home_dir) = std::env::var("USERPROFILE") {
                     let mut new_path = PathBuf::from(home_dir);
                     let remaining = path.strip_prefix("~/").ok();
                     if let Some(rem) = remaining {
@@ -152,9 +159,16 @@ fn resolve_path(path: &Path, base_dir: &Path) -> (PathBuf, bool) {
                         path = base_dir.join(path);
                     }
                 }
+            } else if path.starts_with(".") {
+                let remaining = path.strip_prefix(".\\").ok();
+                path = base_dir.join(remaining.unwrap());
             } else {
                 path = base_dir.join(path);
             }
+        }
+
+        if DEBUG_MODE {
+            dbg!(format!("Path Final: {}", &path.display()));
         }
     }
 
@@ -167,7 +181,7 @@ fn resolve_path(path: &Path, base_dir: &Path) -> (PathBuf, bool) {
 
         if !path.is_absolute() {
             if path.starts_with("~") {
-                if let Ok(home_dir) = env::var("HOME") {
+                if let Ok(home_dir) = std::env::var("HOME") {
                     let mut new_path = PathBuf::from(home_dir);
                     if let Some(remaining) = path.strip_prefix("~/") {
                         new_path.push(remaining);
@@ -176,17 +190,22 @@ fn resolve_path(path: &Path, base_dir: &Path) -> (PathBuf, bool) {
                     }
                     path = new_path;
                 }
+            } else if path.starts_with(".") {
+                let remaining = path.strip_prefix("./").ok();
+                path = base_dir.join(remaining.unwrap());
             } else {
                 path = base_dir.join(path);
             }
         }
+        dbg!(format!("Path Final: {}", &path.display()));
     }
 
-    if DEBUG_MODE {
-        dbg!(&path);
+    let canonical = path.canonicalize();
+    match canonical {
+        Ok(x) => (x.exists(), x),
+        Err(e) => {
+            eprintln!("{}", e);
+            (path.exists(), path)
+        }
     }
-
-    let canonical = path.canonicalize().unwrap_or(path.to_path_buf());
-    let exists = canonical.exists();
-    (canonical, exists)
 }
