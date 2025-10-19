@@ -5,15 +5,6 @@ use std::{
 
 use crate::types::*;
 
-/// Structure for handling two paths, used for path checking and operations
-#[derive(Debug)]
-pub struct GetPathInfo {
-    /// First file or directory path
-    pub path1: PathBuf,
-    /// Second file or directory path
-    pub path2: PathBuf,
-}
-
 /// All path-related operations
 impl GetPathInfo {
     /// Check if paths are files or directories

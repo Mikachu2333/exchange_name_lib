@@ -58,6 +58,7 @@ pub struct GetPathInfo {
 /// Main structure for file name exchange
 ///
 /// Contains complete information of two files for executing rename operations
+#[derive(Default, Debug, Clone)]
 pub struct NameExchange {
     /// Complete information of first file
     pub f1: FileInfos,
