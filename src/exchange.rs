@@ -16,7 +16,7 @@ pub fn exchange_paths(path1: PathBuf, path2: PathBuf) -> Result<(), RenameError>
     }
 
     if path1 == path2 {
-        return Err(RenameError::NotExists);
+        return Err(RenameError::AlreadyExists);
     }
 
     let mut exchange_info = NameExchange::new();
@@ -104,7 +104,7 @@ fn resolve_path(mut path: PathBuf, base_dir: &Path) -> (PathBuf, bool) {
         return (path, false);
     }
 
-    if !path.is_absolute() {
+    if !is_effectively_absolute(&path) {
         path = base_dir.join(path);
     }
 
@@ -114,6 +114,53 @@ fn resolve_path(mut path: PathBuf, base_dir: &Path) -> (PathBuf, bool) {
             return (canonical, true);
         }
     }
-
+dbg!(&path);
     (path, exists)
+}
+
+fn is_effectively_absolute(path: &Path) -> bool {
+    if path.is_absolute() {
+        return true;
+    }
+
+    #[cfg(windows)]
+    {
+        use std::path::{Component, Prefix};
+
+        let mut components = path.components();
+        if let Some(Component::Prefix(prefix_component)) = components.next() {
+            let has_root_dir = matches!(components.next(), Some(Component::RootDir));
+            if !has_root_dir {
+                return false;
+            }
+
+            return matches!(
+                prefix_component.kind(),
+                Prefix::VerbatimUNC(..)
+                    | Prefix::UNC(..)
+                    | Prefix::VerbatimDisk(..)
+                    | Prefix::Disk(_)
+                    | Prefix::DeviceNS(..)
+                    | Prefix::Verbatim(_)
+            );
+        }
+    }
+
+    false
+}
+
+#[cfg(all(test, windows))]
+mod windows_tests {
+    use super::is_effectively_absolute;
+    use std::path::Path;
+
+    #[test]
+    fn unc_paths_are_absolute() {
+        assert!(is_effectively_absolute(Path::new(r"\\wsl.localhost\Debian\home\user1\1.txt")));
+    }
+
+    #[test]
+    fn drive_relative_paths_are_not_absolute() {
+        assert!(is_effectively_absolute(Path::new(r"C:\folder\file.txt")));
+    }
 }

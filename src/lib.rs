@@ -1,5 +1,5 @@
 use std::ffi::{c_char, CStr};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 mod exchange;
 mod file_rename;
@@ -26,6 +26,10 @@ pub unsafe extern "C" fn exchange(path1: *const c_char, path2: *const c_char) ->
             eprintln!("{}", err);
             err.to_code()
         })
+}
+
+pub fn exchange_rs(path1: &Path, path2: &Path) -> Result<(), types::RenameError> {
+    exchange_paths(path1.to_path_buf(), path2.to_path_buf())
 }
 
 unsafe fn convert_inputs(
@@ -62,28 +66,26 @@ fn sanitize_input(input: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use std::{
-        ffi::CString,
-        path::{Path, PathBuf},
-    };
+    use std::path::PathBuf;
 
     fn clear_olds() -> (PathBuf, PathBuf) {
-        let file1 = Path::new(r"D:\Desktop\f\s\2.txt");
-        let file2 = Path::new(r"D:\Desktop\f");
-        (file1.to_path_buf(), file2.to_path_buf())
+        (
+            PathBuf::from(r"\\wsl.localhost\Debian\home\LinkChou\新建 Text 源文件.txt"),
+            PathBuf::from(r"\\wsl.localhost\Debian\home\LinkChou\新建 XLSX 工作表.xlsx"),
+        )
     }
 
     #[test]
     fn it_works() {
         let (file1, file2) = clear_olds();
-        // 0 => Success，1 => No Exist
-        // 2 => Permission Denied，3 => New File Already Exists
-        let trans = |s: PathBuf| CString::new(s.to_str().unwrap()).unwrap();
-        let test_path1 = trans(file1);
-        let test_path2 = trans(file2);
 
-        unsafe {
-            super::exchange(test_path1.as_ptr(), test_path2.as_ptr());
-        }
+        match super::exchange_rs(&file1, &file2) {
+            Ok(_) => {
+                println!("Success");
+            }
+            Err(e) => {
+                eprintln!("{}", e);
+            }
+        };
     }
 }
