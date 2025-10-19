@@ -3,10 +3,10 @@ use std::{
     path::PathBuf,
 };
 
-use file_rename::NameExchange;
-use path_checkout::GetPathInfo;
 mod file_rename;
 mod path_checkout;
+mod types;
+use types::*;
 
 #[no_mangle]
 /// # Safety
@@ -109,7 +109,7 @@ pub extern "C" fn exchange(path1: *const c_char, path2: *const c_char) -> i32 {
     );
     dbg!(mode);
 
-    match (all_infos.f1.is_file, all_infos.f2.is_file) {
+    let rename_result = match (all_infos.f1.is_file, all_infos.f2.is_file) {
         (true, true) => NameExchange::rename_each(&all_infos, false, true),
         (false, false) => {
             // 都是目录，检查包含关系
@@ -133,6 +133,14 @@ pub extern "C" fn exchange(path1: *const c_char, path2: *const c_char) -> i32 {
                 NameExchange::rename_each(&all_infos, false, false)
             }
         }
+    };
+
+    match rename_result {
+        Ok(_) => 0,
+        Err(err) => {
+            eprintln!("{}", err);
+            err.to_code()
+        }
     }
 }
 
@@ -146,7 +154,7 @@ mod tests {
     fn clear_olds() -> (PathBuf, PathBuf) {
         let file1 = Path::new(r"D:\Desktop\f\s\2.txt");
         let file2 = Path::new(r"D:\Desktop\f");
-        return (file1.to_path_buf(), file2.to_path_buf());
+        (file1.to_path_buf(), file2.to_path_buf())
     }
 
     #[test]

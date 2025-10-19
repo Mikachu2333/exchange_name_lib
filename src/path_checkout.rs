@@ -3,38 +3,8 @@ use std::{
     path::{Path, PathBuf},
 };
 
-/// 存储文件或目录的元数据信息
-///
-/// 包含文件或目录的名称、扩展名和父目录路径
-#[derive(Debug)]
-pub struct MetadataCollection {
-    /// 文件名或目录名（不包含扩展名）
-    pub name: String,
-    /// 文件扩展名（包含前导点"."），目录为空字符串
-    pub ext: String,
-    /// 父目录的路径
-    pub parent_dir: PathBuf,
-}
+use crate::types::*;
 
-impl Default for MetadataCollection {
-    /// 创建默认的元数据集合，所有字段为空
-    fn default() -> Self {
-        Self {
-            name: "".to_owned(),
-            ext: "".to_owned(),
-            parent_dir: PathBuf::new(),
-        }
-    }
-}
-
-/// 处理两个路径的结构体，用于路径检查和操作
-#[derive(Debug)]
-pub struct GetPathInfo {
-    /// 第一个文件或目录路径
-    pub path1: PathBuf,
-    /// 第二个文件或目录路径
-    pub path2: PathBuf,
-}
 
 /// 所有路径相关的操作
 impl GetPathInfo {
@@ -114,10 +84,7 @@ impl GetPathInfo {
     /// * `false` - 不存在父子关系
     fn path_is_parent(potential_parent: &Path, potential_child: &Path) -> bool {
         // 尝试确定 child 相对于 parent 的路径
-        match potential_child.strip_prefix(potential_parent) {
-            Ok(_) => true,   // 如果成功，说明是父子关系
-            Err(_) => false, // 如果失败，说明不是父子关系
-        }
+        potential_child.strip_prefix(potential_parent).is_ok()
     }
 
     /// 获取文件或目录的元数据信息
@@ -199,15 +166,5 @@ impl GetPathInfo {
         let metadata1 = GetPathInfo::get_info(&self.path1, is_file1);
         let metadata2 = GetPathInfo::get_info(&self.path2, is_file2);
         (metadata1, metadata2)
-    }
-}
-
-impl Default for GetPathInfo {
-    /// 创建包含空路径的默认实例
-    fn default() -> Self {
-        Self {
-            path1: PathBuf::new(),
-            path2: PathBuf::new(),
-        }
     }
 }
