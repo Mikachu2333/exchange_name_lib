@@ -29,17 +29,19 @@ impl NameExchange {
     ///
     /// ### 返回值
     /// 返回元组 `(临时文件路径, 最终文件路径)`
-    pub fn make_name(dir: &Path, other_name: &str, ext: &str) -> (PathBuf, PathBuf) {
+    pub fn make_name(dir: &Path, other_name: impl ToString, ext: impl ToString) -> (PathBuf, PathBuf) {
+        let other_name = other_name.to_string();
+        let ext = ext.to_string();
         let mut temp_path = dir.to_path_buf();
         let mut final_path = dir.to_path_buf();
 
         // 任意长字符串用作区分
         let mut temp_name = crate::types::GUID.to_string();
-        temp_name.push_str(ext);
+        temp_name.push_str(&ext);
         temp_path.push(temp_name);
 
         let final_component = if ext.is_empty() {
-            other_name.to_owned()
+            other_name
         } else {
             format!("{}{}", other_name, ext)
         };
