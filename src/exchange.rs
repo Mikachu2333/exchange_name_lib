@@ -8,8 +8,8 @@ use crate::types::{GetPathInfo, NameExchange, RenameError};
 pub fn exchange_paths(path1: PathBuf, path2: PathBuf) -> Result<(), RenameError> {
     let base_dir = resolve_base_dir()?;
 
-    let (path1, exists1) = resolve_path(path1, &base_dir);
-    let (path2, exists2) = resolve_path(path2, &base_dir);
+    let (path1, exists1) = resolve_path(&path1, &base_dir);
+    let (path2, exists2) = resolve_path(&path2, &base_dir);
 
     if !exists1 || !exists2 {
         return Err(RenameError::NotExists);
@@ -99,68 +99,89 @@ fn resolve_base_dir() -> Result<PathBuf, RenameError> {
     })
 }
 
-fn resolve_path(mut path: PathBuf, base_dir: &Path) -> (PathBuf, bool) {
+fn resolve_path(path: &Path, base_dir: &Path) -> (PathBuf, bool) {
     if path.as_os_str().is_empty() {
-        return (path, false);
+        return (path.to_path_buf(), false);
     }
 
-    if !is_effectively_absolute(&path) {
-        path = base_dir.join(path);
-    }
-
-    let exists = path.exists();
-    if exists {
-        if let Ok(canonical) = path.canonicalize() {
-            return (canonical, true);
-        }
-    }
-dbg!(&path);
-    (path, exists)
-}
-
-fn is_effectively_absolute(path: &Path) -> bool {
-    if path.is_absolute() {
-        return true;
-    }
+    let mut path = {
+        let temp = path
+            .to_str()
+            .unwrap_or("")
+            .replace("\\\\", "\\")
+            .replace("\\", "/")
+            .replace("//", "/");
+        PathBuf::from(temp)
+    };
 
     #[cfg(windows)]
     {
         use std::path::{Component, Prefix};
-
-        let mut components = path.components();
-        if let Some(Component::Prefix(prefix_component)) = components.next() {
-            let has_root_dir = matches!(components.next(), Some(Component::RootDir));
-            if !has_root_dir {
-                return false;
+        let is_absolute = {
+            let mut components = path.components();
+            if let Some(Component::Prefix(prefix_component)) = components.next() {
+                let has_root_dir = matches!(components.next(), Some(Component::RootDir));
+                if !has_root_dir {
+                    false
+                } else {
+                    matches!(
+                        prefix_component.kind(),
+                        Prefix::VerbatimUNC(..)
+                            | Prefix::UNC(..)
+                            | Prefix::VerbatimDisk(..)
+                            | Prefix::Disk(_)
+                            | Prefix::DeviceNS(..)
+                            | Prefix::Verbatim(_)
+                    )
+                }
+            } else {
+                path.is_absolute()
             }
+        };
 
-            return matches!(
-                prefix_component.kind(),
-                Prefix::VerbatimUNC(..)
-                    | Prefix::UNC(..)
-                    | Prefix::VerbatimDisk(..)
-                    | Prefix::Disk(_)
-                    | Prefix::DeviceNS(..)
-                    | Prefix::Verbatim(_)
-            );
+        if !is_absolute {
+            if path.starts_with("~") {
+                if let Ok(home_dir) = env::var("USERPROFILE") {
+                    let mut new_path = PathBuf::from(home_dir);
+                    let remaining = path
+                        .strip_prefix("~/")
+                        .ok();
+                    if let Some(rem) = remaining {
+                        new_path.push(rem);
+                        path = new_path;
+                    } else if path.to_string_lossy() == "~" {
+                        path = new_path;
+                    } else {
+                        // "~something"
+                        path = base_dir.join(path);
+                    }
+                }
+            } else {
+                path = base_dir.join(path);
+            }
         }
     }
 
-    false
-}
-
-#[cfg(all(test, windows))]
-mod windows_tests {
-    use super::is_effectively_absolute;
-    use std::path::Path;
-
-    #[test]
-    fn unc_paths_are_absolute() {
-        assert!(is_effectively_absolute(Path::new(r"\\wsl.localhost\Debian\home\user1\1.txt")));
+    #[cfg(not(windows))]
+    {
+        if !path.is_absolute() {
+            if path.starts_with("~") {
+                if let Ok(home_dir) = env::var("HOME") {
+                    let mut new_path = PathBuf::from(home_dir);
+                    if let Some(remaining) = path.strip_prefix("~/") {
+                        new_path.push(remaining);
+                    } else if path.to_string_lossy() == "~" {
+                        // Just "~", so it's the home directory
+                    }
+                    path = new_path;
+                }
+            } else {
+                path = base_dir.join(path);
+            }
+        }
     }
 
-    #[test]
-    fn drive_relative_paths_are_not_absolute() {
-        assert!(is_effectively_absolute(Path::new(r"C:\folder\file.txt")));
-    }
+    let canonical = path.canonicalize().unwrap_or(path);
+    let exists = canonical.exists();
+    (canonical, exists)
 }
