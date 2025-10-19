@@ -21,27 +21,77 @@ pub extern "C" fn exchange(path1: *const c_char, path2: *const c_char) -> i32 {
     let binding = std::env::current_exe().unwrap();
     let exe_dir = binding.parent().unwrap();
 
+    if path1.is_null() || path2.is_null() {
+        return 255_i32;
+    }
+
     let transformer = |s: *const c_char| unsafe { CStr::from_ptr(s) }.to_string_lossy().to_string();
 
-    let path1 = transformer(path1);
-    let path2 = transformer(path2);
+    let raw1 = transformer(path1);
+    let raw2 = transformer(path2);
 
     let mut all_infos = NameExchange::new();
 
-    // 用于校验文件夹路径最后是否为斜杠与双引号的闭包
-    let path_check = |s: String| {
-        let temp = s
-            .trim()
-            .trim_matches(['\'', '"', '\\', '\'', '/'])
-            .replace("\\", "/")
-            .replace("//", "/");
-        PathBuf::from(&temp)
-            .canonicalize()
-            .unwrap_or_else(|_| PathBuf::from(&temp))
+    let strip_wrapping_quotes = |s: &str| -> &str {
+        let s = s.trim();
+        if (s.starts_with('"') && s.ends_with('"')) || (s.starts_with('\'') && s.ends_with('\'')) {
+            &s[1..s.len() - 1]
+        } else {
+            s
+        }
     };
+
+    let path_check = |s: String| {
+        let unquoted = strip_wrapping_quotes(&s).to_string();
+
+        let mut candidate_str = unquoted.clone();
+
+        if cfg!(target_os = "linux") {
+            let is_wsl_env = || -> bool {
+                std::fs::read_to_string("/proc/version")
+                    .map(|v| v.contains("Microsoft") || v.contains("WSL"))
+                    .unwrap_or(false)
+            };
+
+            if is_wsl_env() {
+                let bytes = unquoted.as_bytes();
+                let looks_like_win_drive = bytes.len() > 2
+                    && bytes[1] == b':'
+                    && (bytes[2] == b'/' || bytes[2] == b'\\')
+                    && ((bytes[0] >= b'A' && bytes[0] <= b'Z')
+                        || (bytes[0] >= b'a' && bytes[0] <= b'z'));
+
+                if looks_like_win_drive {
+                    let drive = unquoted.chars().next().unwrap().to_ascii_lowercase();
+                    let rest = unquoted[2..].replace('\\', "/");
+                    let rest = rest.trim_start_matches(['/','\\']);
+                    candidate_str = format!("/mnt/{}/{}", drive, rest);
+                } else if unquoted.starts_with("\\\\") {
+                    let without_prefix = &unquoted[2..];
+                    let mut parts = without_prefix.split(['\\','/']).filter(|s| !s.is_empty());
+                    if let (Some(server), Some(share)) = (parts.next(), parts.next()) {
+                        let rest = parts.collect::<Vec<_>>().join("/");
+                        if rest.is_empty() {
+                            candidate_str = format!("/mnt/unc/{}/{}", server, share);
+                        } else {
+                            candidate_str = format!("/mnt/unc/{}/{}/{}", server, share, rest);
+                        }
+                    }
+                }
+            }
+        }
+
+        let p = PathBuf::from(&candidate_str);
+        if p.exists() {
+            p.canonicalize().unwrap_or(p)
+        } else {
+            p
+        }
+    };
+
     let mut packed_path = GetPathInfo {
-        path1: path_check(path1),
-        path2: path_check(path2),
+        path1: path_check(raw1),
+        path2: path_check(raw2),
     };
 
     (all_infos.f1.is_exist, all_infos.f2.is_exist) = (packed_path).if_exist(exe_dir);
@@ -96,18 +146,7 @@ pub extern "C" fn exchange(path1: *const c_char, path2: *const c_char) -> i32 {
     //1 -> parent1, 2 -> parent2
     let mode = packed_path.if_root();
 
-    dbg!(
-        //test
-        all_infos.f1.packed_info.parent_dir.display(),
-        &all_infos.f1.packed_info.name,
-        &all_infos.f1.packed_info.ext
-    );
-    dbg!(
-        all_infos.f2.packed_info.parent_dir.display(),
-        &all_infos.f2.packed_info.name,
-        &all_infos.f2.packed_info.ext
-    );
-    dbg!(mode);
+
 
     match (all_infos.f1.is_file, all_infos.f2.is_file) {
         (true, true) => NameExchange::rename_each(&all_infos, false, true),

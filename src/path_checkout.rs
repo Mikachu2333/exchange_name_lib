@@ -50,7 +50,7 @@ impl GetPathInfo {
     pub fn if_exist(&mut self, dir: &Path) -> (bool, bool) {
         let make_absolute = |path: &mut PathBuf| {
             if path.is_relative() {
-                *path = dir.join(path.file_name().unwrap_or(OsStr::new("")));
+                *path = dir.join(&*path);
             }
         };
 
@@ -79,7 +79,7 @@ impl GetPathInfo {
     /// * `true` - 两个路径在同一个父目录
     /// * `false` - 两个路径在不同的父目录
     pub fn if_same_dir(&self) -> bool {
-        self.path1.parent().unwrap() == self.path2.parent().unwrap()
+        self.path1.parent() == self.path2.parent()
     }
 
     /// 检测两个路径之间是否存在包含关系（父子目录问题）

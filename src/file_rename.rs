@@ -191,18 +191,12 @@ impl NameExchange {
     /// * `255` - 未知错误
     fn handle_rename(from: &Path, to: &Path) -> i32 {
         match std::fs::rename(from, to) {
-            Ok(_) => {
-                println!("SUCCESS: \n{:?} => {:?}\n", from, to);
-                0
-            }
-            Err(e) => {
-                println!("FAILED: \n{:?} => {:?}", from, to);
-                match e.kind() {
-                    std::io::ErrorKind::PermissionDenied => 2,
-                    std::io::ErrorKind::AlreadyExists => 3,
-                    _ => 255,
-                }
-            }
+            Ok(_) => 0,
+            Err(e) => match e.kind() {
+                std::io::ErrorKind::PermissionDenied => 2,
+                std::io::ErrorKind::AlreadyExists => 3,
+                _ => 255,
+            },
         }
     }
 }
