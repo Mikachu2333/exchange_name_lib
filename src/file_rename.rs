@@ -29,7 +29,11 @@ impl NameExchange {
     ///
     /// ### Return Value
     /// Returns tuple `(temporary file path, final file path)`
-    pub fn make_name(dir: &Path, other_name: impl ToString, ext: impl ToString) -> (PathBuf, PathBuf) {
+    pub fn make_name(
+        dir: &Path,
+        other_name: impl ToString,
+        ext: impl ToString,
+    ) -> (PathBuf, PathBuf) {
         let other_name = other_name.to_string();
         let ext = ext.to_string();
         let mut temp_path = dir.to_path_buf();
@@ -80,9 +84,9 @@ impl NameExchange {
 
         //1 first
         if is_nested {
-            // If there is a nesting relationship (parent-child directories or files), 
+            // If there is a nesting relationship (parent-child directories or files),
             // rename directly in order
-            // Do not use temporary files, as using temporary files in nesting relationships 
+            // Do not use temporary files, as using temporary files in nesting relationships
             // may cause path issues
             Self::handle_rename(&path1, &final_name1)?;
             Self::handle_rename(&path2, &final_name2)?;
@@ -109,7 +113,10 @@ impl NameExchange {
     /// Returns `Ok(())` for success, `Err(RenameError)` for specific error
     fn handle_rename(from: &Path, to: &Path) -> Result<(), RenameError> {
         match std::fs::rename(from, to) {
-            Ok(_) => Ok(()),
+            Ok(_) => {
+                println!("Success");
+                Ok(())
+            }
             Err(e) => Err(RenameError::from(e)),
         }
     }
