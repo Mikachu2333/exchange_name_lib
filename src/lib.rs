@@ -26,7 +26,10 @@ use crate::types::RenameError;
 pub unsafe extern "C" fn exchange(path1: *const c_char, path2: *const c_char) -> i32 {
     unsafe { convert_inputs(path1, path2) }
         .and_then(|(path1, path2)| exchange_paths(path1, path2))
-        .map(|_| 0)
+        .map(|_| {
+            println!("Success");
+            0
+        })
         .unwrap_or_else(|err| {
             eprintln!("{}", err);
             err.to_code()
@@ -43,7 +46,16 @@ pub unsafe extern "C" fn exchange(path1: *const c_char, path2: *const c_char) ->
 /// * `Ok(())` - Success
 /// * `Err(RenameError)` - Error information
 pub fn exchange_rs(path1: &Path, path2: &Path) -> Result<(), types::RenameError> {
-    exchange_paths(path1.to_path_buf(), path2.to_path_buf())
+    match exchange_paths(path1.to_path_buf(), path2.to_path_buf()) {
+        Ok(_) => {
+            println!("Success");
+            Ok(())
+        }
+        Err(err) => {
+            eprintln!("{}", err);
+            Err(err)
+        }
+    }
 }
 
 unsafe fn convert_inputs(

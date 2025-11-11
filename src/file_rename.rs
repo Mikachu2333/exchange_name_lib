@@ -113,10 +113,7 @@ impl NameExchange {
     /// Returns `Ok(())` for success, `Err(RenameError)` for specific error
     fn handle_rename(from: &Path, to: &Path) -> Result<(), RenameError> {
         match std::fs::rename(from, to) {
-            Ok(_) => {
-                println!("Success");
-                Ok(())
-            }
+            Ok(_) => Ok(()),
             Err(e) => Err(RenameError::from(e)),
         }
     }
