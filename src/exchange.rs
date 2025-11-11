@@ -25,7 +25,8 @@ pub fn exchange_paths(path1: PathBuf, path2: PathBuf) -> Result<(), RenameError>
     if !exists1 || !exists2 {
         if !exists1 {
             eprintln!("{}", path1.display());
-        } else if !exists2 {
+        }
+        if !exists2 {
             eprintln!("{}", path2.display());
         }
         return Err(RenameError::NotExists);
