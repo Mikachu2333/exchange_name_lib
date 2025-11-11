@@ -19,8 +19,15 @@ pub fn exchange_paths(path1: PathBuf, path2: PathBuf) -> Result<(), RenameError>
 
     let (exists1, path1) = resolve_path(&path1, &base_dir);
     let (exists2, path2) = resolve_path(&path2, &base_dir);
-    dbg!(exists1, &path1, exists2, &path2);
+    if DEBUG_MODE {
+        dbg!(exists1, &path1, exists2, &path2);
+    }
     if !exists1 || !exists2 {
+        if !exists1 {
+            eprintln!("{}", path1.display());
+        } else if !exists2 {
+            eprintln!("{}", path2.display());
+        }
         return Err(RenameError::NotExists);
     }
 
