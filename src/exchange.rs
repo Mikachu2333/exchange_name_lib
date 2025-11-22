@@ -130,7 +130,7 @@ fn resolve_base_dir() -> Result<PathBuf, RenameError> {
 /// ### Return Value
 /// Returns tuple `(whether path exists, normalized path)`
 fn resolve_path(path: &Path, base_dir: &Path) -> (bool, PathBuf) {
-    if path.as_os_str().is_empty() {
+    if *path == *"" {
         return (false, path.to_path_buf());
     }
 
@@ -182,7 +182,7 @@ fn resolve_path(path: &Path, base_dir: &Path) -> (bool, PathBuf) {
                     if let Some(rem) = remaining {
                         new_path.push(rem);
                         path = new_path;
-                    } else if path.to_string_lossy() == "~" {
+                    } else if *path == *"~" {
                         path = new_path;
                     } else {
                         // "~something"
@@ -195,10 +195,6 @@ fn resolve_path(path: &Path, base_dir: &Path) -> (bool, PathBuf) {
             } else {
                 path = base_dir.join(path);
             }
-        }
-
-        if DEBUG_MODE {
-            dbg!(format!("Path Final: {}", &path.display()));
         }
     }
 
@@ -227,7 +223,9 @@ fn resolve_path(path: &Path, base_dir: &Path) -> (bool, PathBuf) {
                 path = base_dir.join(path);
             }
         }
-        dbg!(format!("Path Final: {}", &path.display()));
+    }
+    if DEBUG_MODE {
+        dbg!("Path Final: {}", &path.display());
     }
 
     let canonical = path.canonicalize();
