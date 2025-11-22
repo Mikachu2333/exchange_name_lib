@@ -1,3 +1,5 @@
 target/**
 *.ext1
 *.ext2
+
+*.dll

@@ -211,7 +211,7 @@ pub fn resolve_path(path: &Path, base_dir: &Path) -> (bool, PathBuf) {
                     let mut new_path = PathBuf::from(home_dir);
                     if let Some(remaining) = path.strip_prefix("~/") {
                         new_path.push(remaining);
-                    } else if path.to_string_lossy() == "~" {
+                    } else if *path== *"~" {
                         // Just "~", so it's the home directory
                     }
                     path = new_path;
