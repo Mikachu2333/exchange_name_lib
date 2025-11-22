@@ -129,7 +129,7 @@ fn resolve_base_dir() -> Result<PathBuf, RenameError> {
 ///
 /// ### Return Value
 /// Returns tuple `(whether path exists, normalized path)`
-fn resolve_path(path: &Path, base_dir: &Path) -> (bool, PathBuf) {
+pub fn resolve_path(path: &Path, base_dir: &Path) -> (bool, PathBuf) {
     if *path == *"" {
         return (false, path.to_path_buf());
     }
