@@ -102,7 +102,7 @@ impl GetPathInfo {
                 it is due to special file naming and does not affect subsequent operations.
                 e.g. "C:\\.cargo\\.config", this file cannot get suffix, this folder also cannot get suffix
                 */
-                None => String::new(),
+                Option::None => String::new(),
             }
         };
 
@@ -118,7 +118,7 @@ impl GetPathInfo {
                 parent_dir: {
                     match &file_path.parent() {
                         Some(i) => i.to_path_buf(),
-                        None => PathBuf::new(),
+                        Option::None => PathBuf::new(),
                     }
                 },
             }
@@ -130,7 +130,7 @@ impl GetPathInfo {
                 parent_dir: {
                     match &file_path.parent() {
                         Some(i) => i.to_path_buf(),
-                        None => PathBuf::new(),
+                        Option::None => PathBuf::new(),
                     }
                 },
             }

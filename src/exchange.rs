@@ -209,16 +209,22 @@ pub fn resolve_path(path: &Path, base_dir: &Path) -> (bool, PathBuf) {
             if path.starts_with("~") {
                 if let Ok(home_dir) = std::env::var("HOME") {
                     let mut new_path = PathBuf::from(home_dir);
-                    if let Some(remaining) = path.strip_prefix("~/") {
-                        new_path.push(remaining);
-                    } else if *path== *"~" {
-                        // Just "~", so it's the home directory
+                    let remaining = path.strip_prefix("~/").ok();
+                    if let Some(rem) = remaining {
+                        new_path.push(rem);
+                        path = new_path;
+                    } else if *path == *"~" {
+                        path = new_path;
+                    } else {
+                        path = base_dir.join(path);
                     }
-                    path = new_path;
                 }
             } else if path.starts_with(".") {
-                let remaining = path.strip_prefix("./").ok();
-                path = base_dir.join(remaining.unwrap());
+                if let Ok(remaining) = path.strip_prefix("./") {
+                    path = base_dir.join(remaining);
+                } else {
+                    path = base_dir.join(path);
+                }
             } else {
                 path = base_dir.join(path);
             }
