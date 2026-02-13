@@ -114,27 +114,18 @@ mod tests {
         let base_dir = current_exe.parent().unwrap();
         let _ = std::env::set_current_dir(base_dir);
 
-        let original_path1 = r"\\wsl.localhost\Debian\home\LinkChou\";
-        let original_path2 = r"";
-
         let file1 = "1.ext1";
         let file2 = "2.ext2";
 
         let exchanged_file1 = "2.ext1";
         let exchanged_file2 = "1.ext2";
 
-        let path1 = format!(r"{}{}", original_path1, file1);
-        let path2 = format!(r"{}{}", original_path2, file2);
-
-        let exchanged_path1 = format!(r"{}{}", original_path1, exchanged_file1);
-        let exchanged_path2 = format!(r"{}{}", original_path2, exchanged_file2);
-
-        let _ = remove_file(exchanged_path1);
-        let _ = remove_file(exchanged_path2);
+        let _ = remove_file(exchanged_file1);
+        let _ = remove_file(exchanged_file2);
         let _ = fs::File::create(file1);
         let _ = fs::File::create(file2);
 
-        (PathBuf::from(path1), PathBuf::from(path2))
+        (PathBuf::from(file1), PathBuf::from(file2))
     }
 
     #[test]

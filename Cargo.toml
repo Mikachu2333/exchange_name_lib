@@ -1,6 +1,6 @@
 [package]
 name = "name_exchanger_rs"
-version = "2.1.5"
+version = "2.1.6"
 edition = "2021"
 
 [lib]

@@ -231,7 +231,7 @@ pub fn resolve_path(path: &Path, base_dir: &Path) -> (bool, PathBuf) {
         }
     }
     if DEBUG_MODE {
-        dbg!("Path Final: {}", &path.display());
+        println!("Checked Path: {}", &path.display());
     }
 
     let canonical = path.canonicalize();
