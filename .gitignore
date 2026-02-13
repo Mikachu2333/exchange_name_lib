@@ -3,3 +3,5 @@ target/**
 *.ext2
 
 *.dll
+
+version.h

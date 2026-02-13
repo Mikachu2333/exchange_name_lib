@@ -1,15 +1,19 @@
 [package]
-name = "name_exchanger_rs"
-version = "2.1.6"
+name    = "name_exchanger_rs"
+version = "2.1.7"
 edition = "2021"
+build   = "build.rs"
 
 [lib]
 crate-type = ["cdylib"]
 
 [profile.release]
-lto = true
+lto           = true
 codegen-units = 1
-opt-level = "z"
-strip = true
+opt-level     = "z"
+strip         = true
+
+[build-dependencies]
+embed-resource = "3.0.6"
 
 [dependencies]
