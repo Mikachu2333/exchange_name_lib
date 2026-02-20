@@ -22,6 +22,8 @@ use crate::types::RenameError;
 /// * `1` - File does not exist
 /// * `2` - Permission denied
 /// * `3` - Target file already exists
+/// * `4` - Two paths refer to the same file
+/// * `5` - Invalid path (e.g. non-UTF-8)
 /// * `255` - Unknown error
 pub unsafe extern "C" fn exchange(path1: *const c_char, path2: *const c_char) -> i32 {
     unsafe { convert_inputs(path1, path2) }
@@ -65,8 +67,9 @@ pub fn exchange_rs(path1: &Path, path2: &Path) -> Result<(), types::RenameError>
 /// * `base_dir` - Base directory path
 ///
 /// ### Return Value
-/// Returns tuple `(is_path_exists, normalized_path)`
-pub fn resolve_path_rs(path: &Path, base_dir: &Path) -> (bool, PathBuf) {
+/// * `Ok((bool, PathBuf))` - Tuple of (is_path_exists, normalized_path)
+/// * `Err(RenameError)` - Path resolution failure
+pub fn resolve_path_rs(path: &Path, base_dir: &Path) -> Result<(bool, PathBuf), types::RenameError> {
     resolve_path(path, base_dir)
 }
 

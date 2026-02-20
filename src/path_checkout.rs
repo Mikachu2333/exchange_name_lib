@@ -91,9 +91,9 @@ impl GetPathInfo {
                 Some(i) => {
                     if is_ext {
                         // Whether calculating suffix, if so, add leading dot "."
-                        ".".to_owned() + i.to_str().unwrap()
+                        ".".to_owned() + &i.to_string_lossy()
                     } else {
-                        i.to_str().unwrap().to_string()
+                        i.to_string_lossy().to_string()
                     }
                 }
                 /*
