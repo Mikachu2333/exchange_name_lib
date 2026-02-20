@@ -26,6 +26,8 @@ This library provides safe and atomic file/directory name exchanges through expo
 ///         1 - File does not exist
 ///         2 - Permission denied
 ///         3 - Target file already exists
+///         4 - Two paths refer to the same file
+///         5 - Invalid path (e.g. non-UTF-8)
 ///       255 - Unknown error
 int32_t exchange(const char* path1, const char* path2);
 ```
@@ -48,10 +50,12 @@ use std::path::Path;
 /// ## `RenameError` enum
 /// ```rust
 /// pub enum RenameError {
-///    PermissionDenied,
-///    AlreadyExists,
-///    NotExists,
-///    Unknown(String),
+///     PermissionDenied,
+///     AlreadyExists,
+///     NotExists,
+///     SamePath,
+///     InvalidPath(String),
+///     Unknown(String),
 /// }
 /// ```
 fn exchange_rs(path1: &Path, path2: &Path) -> Result<(), RenameError>;
