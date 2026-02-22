@@ -4,6 +4,14 @@ use embed_resource::CompilationResult::*;
 fn main() {
     #[cfg(windows)]
     {
+        if std::env::var("CARGO_CFG_TARGET_ENV")
+            .unwrap_or("".into())
+            .to_lowercase()
+            == "gnu"
+        {
+            panic!("GNU toolchain is not supported on Win. Please use the MSVC toolchain.");
+        }
+
         let version = env!("CARGO_PKG_VERSION");
         // "0.1.0" -> "0,1,0,0"
         let version_commas = version.replace('.', ",") + ",0";
