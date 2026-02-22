@@ -6,3 +6,5 @@ target/**
 
 version.h
 *.lib
+tests/*
+test/*
