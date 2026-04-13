@@ -21,6 +21,7 @@ This library provides safe and atomic file/directory name exchanges through expo
 /// 
 /// @param path1 - First file or directory path
 /// @param path2 - Second file or directory path
+/// @param preserve_ext - true: keep each file extension, false: swap full names including extension
 /// @return 0 for success, non-zero values for errors:
 ///         0 - Success
 ///         1 - File does not exist
@@ -29,7 +30,7 @@ This library provides safe and atomic file/directory name exchanges through expo
 ///         4 - Two paths refer to the same file
 ///         5 - Invalid path (e.g. non-UTF-8)
 ///       255 - Unknown error
-int32_t exchange(const char* path1, const char* path2);
+int32_t exchange(const char* path1, const char* path2, bool preserve_ext);
 ```
 
 ### Rust Interface
@@ -42,6 +43,7 @@ use std::path::Path;
 /// # Arguments
 /// * `path1` - First file or directory path
 /// * `path2` - Second file or directory path
+/// * `preserve_ext` - true: keep each file extension, false: swap full names including extension
 /// 
 /// # Returns
 /// * `Ok(())` - Success
@@ -58,7 +60,7 @@ use std::path::Path;
 ///     Unknown(String),
 /// }
 /// ```
-fn exchange_rs(path1: &Path, path2: &Path) -> Result<(), RenameError>;
+fn exchange_rs(path1: &Path, path2: &Path, preserve_ext: bool) -> Result<(), RenameError>;
 ```
 
 ## Example 示例

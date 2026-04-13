@@ -23,19 +23,27 @@ impl NameExchange {
     /// Generate temporary file path and final file path based on directory path, filename, and extension
     ///
     /// ### Parameters
-    /// * `dir` - Directory path where file is located
+    /// * `dir`        - Directory path where file is located
     /// * `other_name` - Target filename (without extension)
-    /// * `ext` - File extension (including leading dot ".")
+    /// * `f1_ext`     - File 1 extension (including leading dot ".")
+    /// * `f2_ext`     - File 2 extension (including leading dot ".")
+    /// * `preserve_ext` - Should make new name with/without original ext
     ///
     /// ### Return Value
     /// Returns tuple `(temporary file path, final file path)`
     pub fn make_name(
         dir: &Path,
         other_name: impl ToString,
-        ext: impl ToString,
+        f1_ext: impl ToString,
+        f2_ext: impl ToString,
+        preserve_ext: bool,
     ) -> (PathBuf, PathBuf) {
         let other_name = other_name.to_string();
-        let ext = ext.to_string();
+        let ext = if preserve_ext {
+            f1_ext.to_string()
+        } else {
+            f2_ext.to_string()
+        };
         let mut final_path = dir.to_path_buf();
 
         // Generate unique temporary filename, avoid conflicts with existing files

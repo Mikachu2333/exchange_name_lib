@@ -8,13 +8,18 @@ use crate::types::{GetPathInfo, NameExchange, RenameError, DEBUG_MODE};
 /// Swap names of two files or directories
 ///
 /// ### Parameters
-/// * `path1` - First file or directory path
-/// * `path2` - Second file or directory path
+/// * `path1`        - First file or directory path
+/// * `path2`        - Second file or directory path
+/// * `preserve_ext` - Should preserve file ext or exchange
 ///
 /// ### Return Value
 /// * `Ok(())` - Successfully swapped
 /// * `Err(RenameError)` - Error information
-pub fn exchange_paths(path1: PathBuf, path2: PathBuf) -> Result<(), RenameError> {
+pub fn exchange_paths(
+    path1: PathBuf,
+    path2: PathBuf,
+    preserve_ext: bool,
+) -> Result<(), RenameError> {
     let base_dir = resolve_base_dir()?;
 
     let (exists1, path1) = resolve_path(&path1, &base_dir)?;
@@ -56,6 +61,8 @@ pub fn exchange_paths(path1: PathBuf, path2: PathBuf) -> Result<(), RenameError>
         &exchange_info.f1.packed_info.parent_dir,
         &exchange_info.f2.packed_info.name,
         &exchange_info.f1.packed_info.ext,
+        &exchange_info.f2.packed_info.ext,
+        preserve_ext,
     );
     (
         exchange_info.f2.exchange.pre_path,
@@ -64,6 +71,8 @@ pub fn exchange_paths(path1: PathBuf, path2: PathBuf) -> Result<(), RenameError>
         &exchange_info.f2.packed_info.parent_dir,
         &exchange_info.f1.packed_info.name,
         &exchange_info.f2.packed_info.ext,
+        &exchange_info.f1.packed_info.ext,
+        preserve_ext,
     );
 
     let is_conflict = |new_path: &PathBuf| {

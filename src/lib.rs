@@ -16,6 +16,7 @@ use crate::types::RenameError;
 /// ### Parameters
 /// * `path1` - First file or directory path (C string pointer)
 /// * `path2` - Second file or directory path (C string pointer)
+/// * `preserve_ext` - If true, keep each file's own extension and swap only stems
 ///
 /// ### Return Value
 /// * `0` - Success
@@ -25,9 +26,13 @@ use crate::types::RenameError;
 /// * `4` - Two paths refer to the same file
 /// * `5` - Invalid path (e.g. non-UTF-8)
 /// * `255` - Unknown error
-pub unsafe extern "C" fn exchange(path1: *const c_char, path2: *const c_char) -> i32 {
+pub unsafe extern "C" fn exchange(
+    path1: *const c_char,
+    path2: *const c_char,
+    preserve_ext: bool,
+) -> i32 {
     unsafe { convert_inputs(path1, path2) }
-        .and_then(|(path1, path2)| exchange_paths(path1, path2))
+        .and_then(|(path1, path2)| exchange_paths(path1, path2, preserve_ext))
         .map(|_| {
             println!("Success");
             0
@@ -43,12 +48,17 @@ pub unsafe extern "C" fn exchange(path1: *const c_char, path2: *const c_char) ->
 /// ### Parameters
 /// * `path1` - First file or directory path
 /// * `path2` - Second file or directory path
+/// * `preserve_ext` - If true, keep each file's own extension and swap only stems
 ///
 /// ### Return Value
 /// * `Ok(())` - Success
 /// * `Err(RenameError)` - Error information
-pub fn exchange_rs(path1: &Path, path2: &Path) -> Result<(), types::RenameError> {
-    match exchange_paths(path1.to_path_buf(), path2.to_path_buf()) {
+pub fn exchange_rs(
+    path1: &Path,
+    path2: &Path,
+    preserve_ext: bool,
+) -> Result<(), types::RenameError> {
+    match exchange_paths(path1.to_path_buf(), path2.to_path_buf(), preserve_ext) {
         Ok(_) => {
             println!("Success");
             Ok(())
@@ -111,43 +121,97 @@ fn sanitize_input(input: &str) -> String {
 #[cfg(test)]
 mod tests {
     use std::{
-        fs::{self, remove_file},
-        path::PathBuf,
+        fs::{self, File},
+        io::Write,
+        path::{Path, PathBuf},
+        time::{SystemTime, UNIX_EPOCH},
     };
 
-    fn clear_olds() -> (PathBuf, PathBuf) {
-        let current_exe = std::env::current_exe().unwrap();
-        let base_dir = current_exe.parent().unwrap();
-        let _ = std::env::set_current_dir(base_dir);
+    struct TestDir {
+        path: PathBuf,
+    }
 
-        let file1 = "1.ext1";
-        let file2 = "2.ext2";
-        let file3 = "1.ext2";
+    impl TestDir {
+        fn new(case_name: &str) -> Self {
+            let unique = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos();
+            let mut path = std::env::temp_dir();
+            path.push(format!(
+                "name_exchanger_rs_{}_{}_{}",
+                case_name,
+                std::process::id(),
+                unique
+            ));
+            fs::create_dir_all(&path).unwrap();
+            Self { path }
+        }
 
-        let exchanged_file1 = "2.ext1";
-        let exchanged_file2 = "1.ext2";
+        fn join(&self, file_name: &str) -> PathBuf {
+            self.path.join(file_name)
+        }
+    }
 
-        let _ = remove_file(exchanged_file1);
-        let _ = remove_file(exchanged_file2);
-        let _ = remove_file(file3);
-        let _ = fs::File::create(file3);
-        let _ = fs::File::create(file1);
-        let _ = fs::File::create(file2);
+    impl Drop for TestDir {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.path);
+        }
+    }
 
-        (PathBuf::from(file1), PathBuf::from(file2))
+    fn write_text(path: &Path, content: &str) {
+        let mut file = File::create(path).unwrap();
+        file.write_all(content.as_bytes()).unwrap();
+    }
+
+    fn read_text(path: &Path) -> String {
+        fs::read_to_string(path).unwrap()
     }
 
     #[test]
-    fn it_works() {
-        let (file1, file2) = clear_olds();
+    fn exchange_rs_with_preserve_ext_false_swaps_full_names() {
+        let dir = TestDir::new("swap_full_name");
+        let file1 = dir.join("alpha.ext1");
+        let file2 = dir.join("beta.ext2");
+        write_text(&file1, "A");
+        write_text(&file2, "B");
 
-        match super::exchange_rs(&file1, &file2) {
-            Ok(_) => {
-                println!("Success");
-            }
-            Err(e) => {
-                eprintln!("{}", e);
-            }
-        };
+        super::exchange_rs(&file1, &file2, false).unwrap();
+
+        assert!(file1.exists());
+        assert!(file2.exists());
+        assert_eq!(read_text(&file1), "B");
+        assert_eq!(read_text(&file2), "A");
+    }
+
+    #[test]
+    fn exchange_rs_with_preserve_ext_true_keeps_extensions() {
+        let dir = TestDir::new("keep_extension");
+        let file1 = dir.join("alpha.ext1");
+        let file2 = dir.join("beta.ext2");
+        write_text(&file1, "A");
+        write_text(&file2, "B");
+
+        super::exchange_rs(&file1, &file2, true).unwrap();
+
+        let new_file1 = dir.join("beta.ext1");
+        let new_file2 = dir.join("alpha.ext2");
+
+        assert!(!file1.exists());
+        assert!(!file2.exists());
+        assert!(new_file1.exists());
+        assert!(new_file2.exists());
+        assert_eq!(read_text(&new_file1), "A");
+        assert_eq!(read_text(&new_file2), "B");
+    }
+
+    #[test]
+    fn exchange_rs_same_path_returns_error() {
+        let dir = TestDir::new("same_path");
+        let file = dir.join("same.ext");
+        write_text(&file, "X");
+
+        let result = super::exchange_rs(&file, &file, true);
+        assert!(matches!(result, Err(super::types::RenameError::SamePath)));
     }
 }
