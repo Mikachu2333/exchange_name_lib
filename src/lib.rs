@@ -7,7 +7,7 @@ mod path_checkout;
 mod types;
 
 use crate::exchange::{exchange_paths, resolve_path};
-use crate::types::RenameError;
+pub use crate::types::RenameError;
 
 #[no_mangle]
 /// # Safety
@@ -33,14 +33,8 @@ pub unsafe extern "C" fn exchange(
 ) -> i32 {
     unsafe { convert_inputs(path1, path2) }
         .and_then(|(path1, path2)| exchange_paths(path1, path2, preserve_ext))
-        .map(|_| {
-            println!("Success");
-            0
-        })
-        .unwrap_or_else(|err| {
-            eprintln!("{}", err);
-            err.to_code()
-        })
+        .map(|_| 0)
+        .unwrap_or_else(|err| err.to_code())
 }
 
 /// Rust interface function for swapping names of two files or directories
@@ -57,17 +51,8 @@ pub fn exchange_rs(
     path1: &Path,
     path2: &Path,
     preserve_ext: bool,
-) -> Result<(), types::RenameError> {
-    match exchange_paths(path1.to_path_buf(), path2.to_path_buf(), preserve_ext) {
-        Ok(_) => {
-            println!("Success");
-            Ok(())
-        }
-        Err(err) => {
-            eprintln!("{}", err);
-            Err(err)
-        }
-    }
+) -> Result<(), RenameError> {
+    exchange_paths(path1.to_path_buf(), path2.to_path_buf(), preserve_ext)
 }
 
 /// Resolve and normalize path
@@ -82,7 +67,7 @@ pub fn exchange_rs(
 pub fn resolve_path_rs(
     path: &Path,
     base_dir: &Path,
-) -> Result<(bool, PathBuf), types::RenameError> {
+) -> Result<(bool, PathBuf), RenameError> {
     resolve_path(path, base_dir)
 }
 

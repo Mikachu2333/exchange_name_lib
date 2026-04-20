@@ -1,11 +1,20 @@
 [package]
-name    = "name_exchanger_rs"
-version = "2.2.0"
-edition = "2021"
-build   = "build.rs"
+name          = "name_exchanger_rs"
+version       = "2.2.0"
+edition       = "2021"
+build         = "build.rs"
+description   = "Atomically exchange names of two files or directories with Rust and C APIs"
+license       = "MIT"
+repository    = "https://github.com/Mikachu2333/exchange_name_lib"
+homepage      = "https://github.com/Mikachu2333/exchange_name_lib"
+documentation = "https://docs.rs/name_exchanger_rs"
+readme        = "README.md"
+keywords      = ["rename", "file", "directory", "ffi", "atomic"]
+categories    = ["filesystem", "api-bindings"]
 
 [lib]
-crate-type = ["cdylib", "staticlib"]
+name       = "exchange_name_lib"
+crate-type = ["rlib", "cdylib", "staticlib"]
 
 [profile.release]
 lto           = true
