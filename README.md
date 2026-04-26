@@ -63,6 +63,12 @@ use std::path::Path;
 fn exchange_rs(path1: &Path, path2: &Path, preserve_ext: bool) -> Result<(), RenameError>;
 ```
 
+## Other 其它注意事项
+
+Use `cargo rustc --crate-type staticlib -- --print native-static-libs` to see which libs are requested by this lib.
+
+用 `cargo rustc --crate-type staticlib -- --print native-static-libs` 命令查看需要引入哪些库才能正常编译。
+
 ## Example 示例
 
 Ref to 参考
