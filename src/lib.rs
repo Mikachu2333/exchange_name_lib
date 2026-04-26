@@ -97,10 +97,17 @@ unsafe fn ptr_to_path(ptr: *const c_char) -> Result<PathBuf, RenameError> {
 }
 
 fn sanitize_input(input: &str) -> String {
-    input
-        .trim()
-        .trim_matches(|c| c == '"' || c == '\'')
-        .to_string()
+    let trimmed = input.trim();
+    // Strip at most one layer of matching quotes (shell-style quoting)
+    if trimmed.len() >= 2 {
+        let bytes = trimmed.as_bytes();
+        let first = bytes[0];
+        let last = bytes[bytes.len() - 1];
+        if (first == b'"' || first == b'\'') && first == last {
+            return trimmed[1..trimmed.len() - 1].to_string();
+        }
+    }
+    trimmed.to_string()
 }
 
 #[cfg(test)]

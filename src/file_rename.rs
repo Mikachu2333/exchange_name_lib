@@ -94,34 +94,62 @@ impl NameExchange {
         }
 
         if is_nested {
-            // If there is a nesting relationship (parent-child directories or files),
-            // rename directly in order
-            // Do not use temporary files, as using temporary files in nesting relationships
-            // may cause path issues
             Self::handle_rename(&path1, &final_name1)?;
             if let Err(e) = Self::handle_rename(&path2, &final_name2) {
                 // Rollback step 1
-                let _ = Self::handle_rename(&final_name1, &path1);
+                if let Err(rollback_err) = Self::handle_rename(&final_name1, &path1) {
+                    if DEBUG_MODE {
+                        eprintln!(
+                            "rollback failed: {}. Files may be inconsistent: {} -> {}",
+                            rollback_err,
+                            final_name1.display(),
+                            path1.display()
+                        );
+                    }
+                }
                 return Err(e);
             }
             Ok(())
         } else {
-            // No nesting relationship: use temporary files for safe swapping
-            // 1. Rename the second file to temporary file
-            // 2. Rename the first file to final name
-            // 3. Rename the temporary file to final name
             Self::handle_rename(&path2, &tmp_name2)?;
 
             if let Err(e) = Self::handle_rename(&path1, &final_name1) {
                 // Rollback step 1: restore path2
-                let _ = Self::handle_rename(&tmp_name2, &path2);
+                if let Err(rollback_err) = Self::handle_rename(&tmp_name2, &path2) {
+                    if DEBUG_MODE {
+                        eprintln!(
+                            "rollback failed: {}. Files may be inconsistent: {} -> {}",
+                            rollback_err,
+                            tmp_name2.display(),
+                            path2.display()
+                        );
+                    }
+                }
                 return Err(e);
             }
 
             if let Err(e) = Self::handle_rename(&tmp_name2, &final_name2) {
                 // Rollback steps 1 & 2: restore both files
-                let _ = Self::handle_rename(&final_name1, &path1);
-                let _ = Self::handle_rename(&tmp_name2, &path2);
+                if let Err(rollback_err) = Self::handle_rename(&final_name1, &path1) {
+                    if DEBUG_MODE {
+                        eprintln!(
+                            "rollback failed: {}. Files may be inconsistent: {} -> {}",
+                            rollback_err,
+                            final_name1.display(),
+                            path1.display()
+                        );
+                    }
+                }
+                if let Err(rollback_err) = Self::handle_rename(&tmp_name2, &path2) {
+                    if DEBUG_MODE {
+                        eprintln!(
+                            "rollback failed: {}. Files may be inconsistent: {} -> {}",
+                            rollback_err,
+                            tmp_name2.display(),
+                            path2.display()
+                        );
+                    }
+                }
                 return Err(e);
             }
 

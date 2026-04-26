@@ -28,11 +28,13 @@ pub fn exchange_paths(
         dbg!(exists1, &path1, exists2, &path2);
     }
     if !exists1 || !exists2 {
-        if !exists1 {
-            eprintln!("{}", path1.display());
-        }
-        if !exists2 {
-            eprintln!("{}", path2.display());
+        if DEBUG_MODE {
+            if !exists1 {
+                eprintln!("{}", path1.display());
+            }
+            if !exists2 {
+                eprintln!("{}", path2.display());
+            }
         }
         return Err(RenameError::NotExists);
     }
@@ -88,6 +90,12 @@ pub fn exchange_paths(
     }
 
     let mode = original_paths.if_root();
+
+    // A file path cannot contain another path; override false nesting detection
+    let mode = match (exchange_info.f1.is_file, exchange_info.f2.is_file, mode) {
+        (true, _, 1) | (_, true, 2) => 0,
+        _ => mode,
+    };
 
     match (exchange_info.f1.is_file, exchange_info.f2.is_file) {
         (true, true) => NameExchange::rename_each(&exchange_info, false, true),
@@ -171,25 +179,28 @@ pub fn resolve_path(path: &Path, base_dir: &Path) -> Result<(bool, PathBuf), Ren
         let is_absolute = {
             let mut components = path.components();
             if let Some(Component::Prefix(prefix_component)) = components.next() {
+                let kind = prefix_component.kind();
                 let has_root_dir = matches!(components.next(), Some(Component::RootDir));
                 if DEBUG_MODE {
-                    dbg!(has_root_dir);
+                    dbg!(has_root_dir, &kind);
                 }
-                if !has_root_dir {
-                    false
-                } else {
-                    if DEBUG_MODE {
-                        dbg!(prefix_component.kind());
-                    }
-
+                if has_root_dir {
                     matches!(
-                        prefix_component.kind(),
+                        kind,
                         Prefix::VerbatimUNC(..)
                             | Prefix::UNC(..)
                             | Prefix::VerbatimDisk(..)
                             | Prefix::Disk(_)
                             | Prefix::DeviceNS(..)
                             | Prefix::Verbatim(_)
+                    )
+                } else {
+                    // UNC, VerbatimUNC, and DeviceNS are absolute even without explicit RootDir
+                    matches!(
+                        kind,
+                        Prefix::VerbatimUNC(..)
+                            | Prefix::UNC(..)
+                            | Prefix::DeviceNS(..)
                     )
                 }
             } else {
@@ -281,7 +292,9 @@ pub fn resolve_path(path: &Path, base_dir: &Path) -> Result<(bool, PathBuf), Ren
     match canonical {
         Ok(x) => Ok((x.exists(), x)),
         Err(e) => {
-            eprintln!("{}", e);
+            if DEBUG_MODE {
+                eprintln!("canonicalize failed: {}", e);
+            }
             Ok((path.exists(), path))
         }
     }

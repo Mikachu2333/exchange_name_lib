@@ -1,6 +1,6 @@
 [package]
 name          = "name_exchanger_rs"
-version       = "2.2.0"
+version       = "2.2.1"
 edition       = "2021"
 build         = "build.rs"
 description   = "Atomically exchange names of two files or directories with Rust and C APIs"
@@ -23,6 +23,6 @@ opt-level     = "z"
 strip         = true
 
 [build-dependencies]
-embed-resource = "3.0.8"
+embed-resource = "3.0.9"
 
 [dependencies]

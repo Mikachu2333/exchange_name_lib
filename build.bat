@@ -16,7 +16,8 @@ if %ERRORLEVEL% NEQ 0 (
   goto end
 )
 echo Copying artifact...
-copy /Y ".\target\i686-pc-windows-msvc\release\name_exchanger_rs.lib" ".\name_exchanger_x86.lib"
+copy /Y ".\target\i686-pc-windows-msvc\release\exchange_name_lib.lib" ".\name_exchanger_x86.lib"
+copy /Y ".\target\i686-pc-windows-msvc\release\exchange_name_lib.dll" ".\name_exchanger_x86.dll"
 
 echo Building with MSVC x64 (Static CRT)...
 REM Set RUSTFLAGS to statically link the CRT
@@ -27,7 +28,8 @@ if %ERRORLEVEL% NEQ 0 (
   goto end
 )
 echo Copying artifact...
-copy /Y ".\target\x86_64-pc-windows-msvc\release\name_exchanger_rs.lib" ".\name_exchanger_x64.lib"
+copy /Y ".\target\x86_64-pc-windows-msvc\release\exchange_name_lib.lib" ".\name_exchanger_x64.lib"
+copy /Y ".\target\x86_64-pc-windows-msvc\release\exchange_name_lib.dll" ".\name_exchanger_x64.dll"
 goto end
 
 :end

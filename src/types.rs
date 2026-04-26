@@ -104,12 +104,20 @@ impl std::fmt::Display for RenameError {
     }
 }
 
+impl std::error::Error for RenameError {}
+
 impl From<io::Error> for RenameError {
     fn from(value: io::Error) -> Self {
         match value.kind() {
             io::ErrorKind::NotFound => RenameError::NotExists,
             io::ErrorKind::PermissionDenied => RenameError::PermissionDenied,
             io::ErrorKind::AlreadyExists => RenameError::AlreadyExists,
+            io::ErrorKind::InvalidInput | io::ErrorKind::InvalidFilename => {
+                RenameError::InvalidPath(value.to_string())
+            }
+            io::ErrorKind::CrossesDevices => {
+                RenameError::Unknown(format!("Cross-device rename not supported: {}", value))
+            }
             _ => RenameError::Unknown(value.to_string()),
         }
     }
