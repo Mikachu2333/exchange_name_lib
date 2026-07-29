@@ -1,28 +1,37 @@
 [package]
-name          = "name_exchanger_rs"
-version       = "2.2.1"
-edition       = "2021"
-build         = "build.rs"
-description   = "Atomically exchange names of two files or directories with Rust and C APIs"
-license       = "MIT"
-repository    = "https://github.com/Mikachu2333/exchange_name_lib"
-homepage      = "https://github.com/Mikachu2333/exchange_name_lib"
+name = "name_exchanger_rs"
+version = "2.3.0"
+edition = "2021"
+build = "build.rs"
+description = "Exchange names of two files, directories, or symbolic links with Rust and C APIs"
+license = "MIT"
+repository = "https://github.com/Mikachu2333/exchange_name_lib"
+homepage = "https://github.com/Mikachu2333/exchange_name_lib"
 documentation = "https://docs.rs/name_exchanger_rs"
-readme        = "README.md"
-keywords      = ["rename", "file", "directory", "ffi", "atomic"]
-categories    = ["filesystem", "api-bindings"]
+readme = "README.md"
+keywords = ["rename", "file", "directory", "ffi", "filesystem"]
+categories = ["filesystem", "api-bindings"]
 
 [lib]
-name       = "exchange_name_lib"
+name = "exchange_name_lib"
 crate-type = ["rlib", "cdylib", "staticlib"]
 
 [profile.release]
-lto           = true
+lto = true
 codegen-units = 1
-opt-level     = "z"
-strip         = true
+opt-level = "z"
+strip = true
 
 [build-dependencies]
 embed-resource = "3.0.9"
 
 [dependencies]
+same-file = "1.0.6"
+tempfile = "3.27.0"
+
+[lints.rust]
+unsafe_op_in_unsafe_fn = "deny"
+
+[lints.clippy]
+all = "warn"
+pedantic = "warn"
