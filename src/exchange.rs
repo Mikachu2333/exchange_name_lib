@@ -1,301 +1,174 @@
 use std::{
     env,
-    path::{Path, PathBuf},
+    ffi::OsStr,
+    fs,
+    path::{Component, Path, PathBuf},
+    sync::{Mutex, MutexGuard, OnceLock},
 };
 
-use crate::types::{GetPathInfo, NameExchange, RenameError, DEBUG_MODE};
+use same_file::is_same_file;
 
-/// Swap names of two files or directories
-///
-/// ### Parameters
-/// * `path1`        - First file or directory path
-/// * `path2`        - Second file or directory path
-/// * `preserve_ext` - Should preserve file ext or exchange
-///
-/// ### Return Value
-/// * `Ok(())` - Successfully swapped
-/// * `Err(RenameError)` - Error information
-pub fn exchange_paths(
-    path1: PathBuf,
-    path2: PathBuf,
+use crate::{
+    file_rename::swap_paths,
+    path_checkout::{compose_file_name, is_strict_ancestor, EntryKind, PathInfo},
+    types::RenameError,
+};
+
+static OPERATION_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+
+/// Swap names of two filesystem entries.
+pub(crate) fn exchange_paths(
+    path1: &Path,
+    path2: &Path,
     preserve_ext: bool,
 ) -> Result<(), RenameError> {
+    let _guard = lock_operations();
     let base_dir = resolve_base_dir()?;
-
-    let (exists1, path1) = resolve_path(&path1, &base_dir)?;
-    let (exists2, path2) = resolve_path(&path2, &base_dir)?;
-    if DEBUG_MODE {
-        dbg!(exists1, &path1, exists2, &path2);
-    }
+    let (exists1, path1) = resolve_path(path1, &base_dir)?;
+    let (exists2, path2) = resolve_path(path2, &base_dir)?;
     if !exists1 || !exists2 {
-        if DEBUG_MODE {
-            if !exists1 {
-                eprintln!("{}", path1.display());
-            }
-            if !exists2 {
-                eprintln!("{}", path2.display());
-            }
-        }
         return Err(RenameError::NotExists);
     }
 
-    if path1 == path2 {
+    if path1 == path2 || is_same_file(&path1, &path2).map_err(RenameError::from)? {
         return Err(RenameError::SamePath);
     }
 
-    let mut exchange_info = NameExchange::new();
-    exchange_info.f1.is_exist = true;
-    exchange_info.f2.is_exist = true;
+    let first = PathInfo::inspect(path1)?;
+    let second = PathInfo::inspect(path2)?;
 
-    let original_paths = GetPathInfo { path1, path2 };
-
-    (exchange_info.f1.is_file, exchange_info.f2.is_file) = original_paths.if_file();
-    (exchange_info.f1.packed_info, exchange_info.f2.packed_info) =
-        original_paths.metadata_collect(exchange_info.f1.is_file, exchange_info.f2.is_file);
-
-    exchange_info.f1.exchange.original_path = original_paths.path1.clone();
-    exchange_info.f2.exchange.original_path = original_paths.path2.clone();
-
-    (
-        exchange_info.f1.exchange.pre_path,
-        exchange_info.f1.exchange.new_path,
-    ) = NameExchange::make_name(
-        &exchange_info.f1.packed_info.parent_dir,
-        &exchange_info.f2.packed_info.name,
-        &exchange_info.f1.packed_info.ext,
-        &exchange_info.f2.packed_info.ext,
-        preserve_ext,
-    );
-    (
-        exchange_info.f2.exchange.pre_path,
-        exchange_info.f2.exchange.new_path,
-    ) = NameExchange::make_name(
-        &exchange_info.f2.packed_info.parent_dir,
-        &exchange_info.f1.packed_info.name,
-        &exchange_info.f2.packed_info.ext,
-        &exchange_info.f1.packed_info.ext,
-        preserve_ext,
-    );
-
-    let is_conflict = |new_path: &PathBuf| {
-        new_path.exists()
-            && *new_path != exchange_info.f1.exchange.original_path
-            && *new_path != exchange_info.f2.exchange.original_path
-    };
-
-    if is_conflict(&exchange_info.f1.exchange.new_path)
-        || is_conflict(&exchange_info.f2.exchange.new_path)
+    // A parent move invalidates the child's path halfway through a multi-step exchange.
+    // Reject this case rather than risk moving entries to unintended locations.
+    if (first.is_directory() && is_strict_ancestor(&first.original, &second.original))
+        || (second.is_directory() && is_strict_ancestor(&second.original, &first.original))
     {
+        return Err(RenameError::InvalidPath(
+            "ancestor/descendant paths cannot be exchanged safely".to_owned(),
+        ));
+    }
+
+    let first_target = target_for(&first, &second, preserve_ext);
+    let second_target = target_for(&second, &first, preserve_ext);
+    if first_target == second_target {
         return Err(RenameError::AlreadyExists);
     }
 
-    let mode = original_paths.if_root();
+    ensure_target_available(&first_target, &first, &second)?;
+    ensure_target_available(&second_target, &first, &second)?;
 
-    // A file path cannot contain another path; override false nesting detection
-    let mode = match (exchange_info.f1.is_file, exchange_info.f2.is_file, mode) {
-        (true, _, 1) | (_, true, 2) => 0,
-        _ => mode,
+    swap_paths(
+        &first.original,
+        &first_target,
+        &second.original,
+        &second_target,
+    )
+}
+
+fn lock_operations() -> MutexGuard<'static, ()> {
+    OPERATION_LOCK
+        .get_or_init(|| Mutex::new(()))
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+}
+
+fn target_for(entry: &PathInfo, other: &PathInfo, preserve_ext: bool) -> PathBuf {
+    let name = if entry.kind == EntryKind::File && other.kind == EntryKind::File {
+        let extension = if preserve_ext {
+            entry.extension.as_deref()
+        } else {
+            other.extension.as_deref()
+        };
+        compose_file_name(&other.stem, extension)
+    } else {
+        other.file_name.clone()
     };
+    entry.parent.join(name)
+}
 
-    match (exchange_info.f1.is_file, exchange_info.f2.is_file) {
-        (true, true) => NameExchange::rename_each(&exchange_info, false, true),
-        (false, false) => match mode {
-            1 => NameExchange::rename_each(&exchange_info, true, false),
-            2 => NameExchange::rename_each(&exchange_info, true, true),
-            _ => NameExchange::rename_each(&exchange_info, false, true),
-        },
-        (true, false) => {
-            if mode == 2 {
-                NameExchange::rename_each(&exchange_info, true, true)
-            } else {
-                NameExchange::rename_each(&exchange_info, false, true)
-            }
-        }
-        (false, true) => {
-            if mode == 1 {
-                NameExchange::rename_each(&exchange_info, true, false)
-            } else {
-                NameExchange::rename_each(&exchange_info, false, false)
-            }
-        }
+fn ensure_target_available(
+    target: &Path,
+    first: &PathInfo,
+    second: &PathInfo,
+) -> Result<(), RenameError> {
+    if target == first.original || target == second.original {
+        return Ok(());
+    }
+    match fs::symlink_metadata(target) {
+        Ok(_) => Err(RenameError::AlreadyExists),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(error.into()),
     }
 }
 
-/// Resolve base directory path
-///
-/// ### Return Value
-/// * `Ok(PathBuf)` - Base directory path
-/// * `Err(RenameError)` - Resolution failure
 fn resolve_base_dir() -> Result<PathBuf, RenameError> {
-    // Prefer current working directory over executable directory
-    if let Ok(cwd) = env::current_dir() {
-        return Ok(cwd);
-    }
-
-    if let Ok(exe) = env::current_exe() {
-        if let Some(parent) = exe.parent() {
-            return Ok(parent.to_path_buf());
-        }
-    }
-
-    Err(RenameError::Unknown(
-        "Failed to resolve working directory".to_string(),
-    ))
+    env::current_dir().map_err(RenameError::from)
 }
 
-/// Resolve and normalize path
+/// Resolve a path without dereferencing its final component.
 ///
-/// ### Parameters
-/// * `path` - Original path
-/// * `base_dir` - Base directory path
-///
-/// ### Return Value
-/// * `Ok((bool, PathBuf))` - Tuple of (whether path exists, normalized path)
-/// * `Err(RenameError)` - Path resolution failure (e.g. invalid UTF-8, missing env var)
-pub fn resolve_path(path: &Path, base_dir: &Path) -> Result<(bool, PathBuf), RenameError> {
-    if *path == *"" {
+/// Existing parent directories are canonicalized, but a final symbolic link remains a link.
+pub(crate) fn resolve_path(path: &Path, base_dir: &Path) -> Result<(bool, PathBuf), RenameError> {
+    if path.as_os_str().is_empty() {
         return Ok((false, path.to_path_buf()));
     }
 
-    let mut path = path.to_path_buf();
+    let expanded = expand_home(path)?;
+    let absolute = if expanded.is_absolute() {
+        expanded
+    } else {
+        base_dir.join(expanded)
+    };
+    let normalized = normalize_lexically(&absolute)?;
 
-    #[cfg(windows)]
+    let resolved = if let (Some(parent), Some(name)) = (normalized.parent(), normalized.file_name())
     {
-        use std::path::{Component, Prefix};
-
-        path = {
-            let temp = path
-                .to_str()
-                .ok_or_else(|| {
-                    RenameError::InvalidPath(format!(
-                        "Path contains invalid UTF-8: {}",
-                        path.display()
-                    ))
-                })?
-                .replace("/", "\\");
-            PathBuf::from(temp)
-        };
-
-        let is_absolute = {
-            let mut components = path.components();
-            if let Some(Component::Prefix(prefix_component)) = components.next() {
-                let kind = prefix_component.kind();
-                let has_root_dir = matches!(components.next(), Some(Component::RootDir));
-                if DEBUG_MODE {
-                    dbg!(has_root_dir, &kind);
-                }
-                if has_root_dir {
-                    matches!(
-                        kind,
-                        Prefix::VerbatimUNC(..)
-                            | Prefix::UNC(..)
-                            | Prefix::VerbatimDisk(..)
-                            | Prefix::Disk(_)
-                            | Prefix::DeviceNS(..)
-                            | Prefix::Verbatim(_)
-                    )
-                } else {
-                    // UNC, VerbatimUNC, and DeviceNS are absolute even without explicit RootDir
-                    matches!(
-                        kind,
-                        Prefix::VerbatimUNC(..)
-                            | Prefix::UNC(..)
-                            | Prefix::DeviceNS(..)
-                    )
-                }
-            } else {
-                path.is_absolute()
-            }
-        };
-
-        if !is_absolute {
-            if path.starts_with("~") {
-                if let Ok(home_dir) = std::env::var("USERPROFILE") {
-                    let mut new_path = PathBuf::from(home_dir);
-                    let remaining = path.strip_prefix("~/").ok();
-                    if let Some(rem) = remaining {
-                        new_path.push(rem);
-                        path = new_path;
-                    } else if *path == *"~" {
-                        path = new_path;
-                    } else {
-                        // "~something"
-                        path = base_dir.join(path);
-                    }
-                } else {
-                    return Err(RenameError::InvalidPath(
-                        "USERPROFILE environment variable is not set, cannot expand '~'"
-                            .to_string(),
-                    ));
-                }
-            } else if path.starts_with(".") {
-                if let Ok(remaining) = path.strip_prefix(".\\") {
-                    path = base_dir.join(remaining);
-                } else {
-                    path = base_dir.join(&path);
-                }
-            } else {
-                path = base_dir.join(path);
-            }
+        match parent.canonicalize() {
+            Ok(parent) => parent.join(name),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => normalized,
+            Err(error) => return Err(error.into()),
         }
-    }
+    } else {
+        normalized
+    };
 
-    #[cfg(not(windows))]
+    match fs::symlink_metadata(&resolved) {
+        Ok(_) => Ok((true, resolved)),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok((false, resolved)),
+        Err(error) => Err(error.into()),
+    }
+}
+
+fn expand_home(path: &Path) -> Result<PathBuf, RenameError> {
+    let mut components = path.components();
+    if !matches!(components.next(), Some(Component::Normal(component)) if component == OsStr::new("~"))
     {
-        path = {
-            let temp = path
-                .to_str()
-                .ok_or_else(|| {
-                    RenameError::InvalidPath(format!(
-                        "Path contains invalid UTF-8: {}",
+        return Ok(path.to_path_buf());
+    }
+
+    let variable = if cfg!(windows) { "USERPROFILE" } else { "HOME" };
+    let home = env::var_os(variable).ok_or_else(|| {
+        RenameError::InvalidPath(format!("{variable} is not set; cannot expand '~'"))
+    })?;
+    let mut expanded = PathBuf::from(home);
+    expanded.extend(components);
+    Ok(expanded)
+}
+
+fn normalize_lexically(path: &Path) -> Result<PathBuf, RenameError> {
+    let mut result = PathBuf::new();
+    for component in path.components() {
+        match component {
+            Component::CurDir => {}
+            Component::ParentDir => {
+                if !result.pop() {
+                    return Err(RenameError::InvalidPath(format!(
+                        "path escapes its root: {}",
                         path.display()
-                    ))
-                })?
-                .replace("\\", "/");
-            PathBuf::from(temp)
-        };
-
-        if !path.is_absolute() {
-            if path.starts_with("~") {
-                if let Ok(home_dir) = std::env::var("HOME") {
-                    let mut new_path = PathBuf::from(home_dir);
-                    let remaining = path.strip_prefix("~/").ok();
-                    if let Some(rem) = remaining {
-                        new_path.push(rem);
-                        path = new_path;
-                    } else if *path == *"~" {
-                        path = new_path;
-                    } else {
-                        path = base_dir.join(path);
-                    }
-                } else {
-                    return Err(RenameError::InvalidPath(
-                        "HOME environment variable is not set, cannot expand '~'".to_string(),
-                    ));
+                    )));
                 }
-            } else if path.starts_with(".") {
-                if let Ok(remaining) = path.strip_prefix("./") {
-                    path = base_dir.join(remaining);
-                } else {
-                    path = base_dir.join(path);
-                }
-            } else {
-                path = base_dir.join(path);
             }
+            other => result.push(other.as_os_str()),
         }
     }
-    if DEBUG_MODE {
-        println!("Checked Path: {}", &path.display());
-    }
-
-    let canonical = path.canonicalize();
-    match canonical {
-        Ok(x) => Ok((x.exists(), x)),
-        Err(e) => {
-            if DEBUG_MODE {
-                eprintln!("canonicalize failed: {}", e);
-            }
-            Ok((path.exists(), path))
-        }
-    }
+    Ok(result)
 }

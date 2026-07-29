@@ -1,174 +1,74 @@
-use std::path::{Path, PathBuf};
+use std::{fs, path::Path};
 
-use crate::types::*;
+use tempfile::Builder;
 
-/// Main rename logic integration
-impl NameExchange {
-    /// Initialize structure for storing all information
-    ///
-    /// Create a new NameExchange instance with two default initialized FileInfos
-    pub fn new() -> NameExchange {
-        NameExchange {
-            f1: FileInfos {
-                ..Default::default()
-            },
-            f2: FileInfos {
-                ..Default::default()
-            },
-        }
-    }
+use crate::types::RenameError;
 
-    /// Get temporary filename and renamed filename
-    ///
-    /// Generate temporary file path and final file path based on directory path, filename, and extension
-    ///
-    /// ### Parameters
-    /// * `dir`        - Directory path where file is located
-    /// * `other_name` - Target filename (without extension)
-    /// * `f1_ext`     - File 1 extension (including leading dot ".")
-    /// * `f2_ext`     - File 2 extension (including leading dot ".")
-    /// * `preserve_ext` - Should make new name with/without original ext
-    ///
-    /// ### Return Value
-    /// Returns tuple `(temporary file path, final file path)`
-    pub fn make_name(
-        dir: &Path,
-        other_name: impl ToString,
-        f1_ext: impl ToString,
-        f2_ext: impl ToString,
-        preserve_ext: bool,
-    ) -> (PathBuf, PathBuf) {
-        let other_name = other_name.to_string();
-        let ext = if preserve_ext {
-            f1_ext.to_string()
-        } else {
-            f2_ext.to_string()
+/// Perform a three-step exchange with best-effort rollback.
+///
+/// Each individual rename is atomic on a single filesystem. The complete exchange is not a
+/// filesystem transaction: another process can observe intermediate states, and a process crash
+/// can leave the temporary directory behind.
+pub(crate) fn swap_paths(
+    first_source: &Path,
+    first_target: &Path,
+    second_source: &Path,
+    second_target: &Path,
+) -> Result<(), RenameError> {
+    let temp_parent = second_source.parent().ok_or_else(|| {
+        RenameError::InvalidPath(format!("path has no parent: {}", second_source.display()))
+    })?;
+    let temp_dir = Builder::new()
+        .prefix(".name-exchange-")
+        .tempdir_in(temp_parent)
+        .map_err(RenameError::from)?;
+    let temporary = temp_dir.path().join("entry");
+
+    rename(second_source, &temporary)?;
+
+    if let Err(operation) = rename(first_source, first_target) {
+        return match rename(&temporary, second_source) {
+            Ok(()) => Err(operation),
+            Err(rollback) => Err(rollback_failed(&operation, &rollback)),
         };
-        let mut final_path = dir.to_path_buf();
+    }
 
-        // Generate unique temporary filename, avoid conflicts with existing files
-        let base_temp = crate::types::GUID;
-        let mut temp_path = dir.join(format!("{}{}", base_temp, ext));
-        let mut counter = 0u64;
-        while temp_path.exists() {
-            counter += 1;
-            temp_path = dir.join(format!("{}_{}{}", base_temp, counter, ext));
-        }
-
-        let final_component = if ext.is_empty() {
-            other_name
-        } else {
-            format!("{}{}", other_name, ext)
+    if let Err(operation) = rename(&temporary, second_target) {
+        let first_rollback = rename(first_target, first_source);
+        let second_rollback = rename(&temporary, second_source);
+        return match (first_rollback, second_rollback) {
+            (Ok(()), Ok(())) => Err(operation),
+            (first_result, second_result) => {
+                let rollback = [first_result.err(), second_result.err()]
+                    .into_iter()
+                    .flatten()
+                    .map(|error| error.to_string())
+                    .collect::<Vec<_>>()
+                    .join("; ");
+                Err(RenameError::RollbackFailed {
+                    operation: operation.to_string(),
+                    rollback,
+                })
+            }
         };
-
-        if !final_component.is_empty() {
-            final_path.push(final_component);
-        }
-
-        (temp_path, final_path)
     }
 
-    /// Rename execution part
-    ///
-    /// Execute rename operation based on file type and nesting relationship
-    ///
-    /// ### Parameters
-    /// * `is_nested` - Whether there is a nesting relationship (such as parent-child directories)
-    /// * `file1_first` - Whether to rename the first file first
-    ///
-    /// ### Return Value
-    /// Returns `Ok(())` for success, `Err(RenameError)` for corresponding failure reason
-    pub fn rename_each(&self, is_nested: bool, file1_first: bool) -> Result<(), RenameError> {
-        // Prepare path variables according to rename order
-        let mut path1 = self.f2.exchange.original_path.clone();
-        let mut final_name1 = self.f2.exchange.new_path.clone();
-        let mut path2 = self.f1.exchange.original_path.clone();
-        let mut final_name2 = self.f1.exchange.new_path.clone();
-        let mut tmp_name2 = self.f1.exchange.pre_path.clone();
-        if file1_first {
-            path1 = self.f1.exchange.original_path.clone();
-            final_name1 = self.f1.exchange.new_path.clone();
-            path2 = self.f2.exchange.original_path.clone();
-            final_name2 = self.f2.exchange.new_path.clone();
-            tmp_name2 = self.f2.exchange.pre_path.clone();
-        }
+    // The exchange has completed; failure to remove an empty private directory must not report
+    // the exchange itself as failed, because retrying would reverse the successful operation.
+    let _ = temp_dir.close();
+    Ok(())
+}
 
-        if is_nested {
-            Self::handle_rename(&path1, &final_name1)?;
-            if let Err(e) = Self::handle_rename(&path2, &final_name2) {
-                // Rollback step 1
-                if let Err(rollback_err) = Self::handle_rename(&final_name1, &path1) {
-                    if DEBUG_MODE {
-                        eprintln!(
-                            "rollback failed: {}. Files may be inconsistent: {} -> {}",
-                            rollback_err,
-                            final_name1.display(),
-                            path1.display()
-                        );
-                    }
-                }
-                return Err(e);
-            }
-            Ok(())
-        } else {
-            Self::handle_rename(&path2, &tmp_name2)?;
+fn rename(from: &Path, to: &Path) -> Result<(), RenameError> {
+    // Windows refuses to replace an existing destination. On Unix, callers check for conflicts;
+    // an unrelated process can still race this operation because portable Rust has no
+    // no-replace rename primitive for every supported Unix platform.
+    fs::rename(from, to).map_err(RenameError::from)
+}
 
-            if let Err(e) = Self::handle_rename(&path1, &final_name1) {
-                // Rollback step 1: restore path2
-                if let Err(rollback_err) = Self::handle_rename(&tmp_name2, &path2) {
-                    if DEBUG_MODE {
-                        eprintln!(
-                            "rollback failed: {}. Files may be inconsistent: {} -> {}",
-                            rollback_err,
-                            tmp_name2.display(),
-                            path2.display()
-                        );
-                    }
-                }
-                return Err(e);
-            }
-
-            if let Err(e) = Self::handle_rename(&tmp_name2, &final_name2) {
-                // Rollback steps 1 & 2: restore both files
-                if let Err(rollback_err) = Self::handle_rename(&final_name1, &path1) {
-                    if DEBUG_MODE {
-                        eprintln!(
-                            "rollback failed: {}. Files may be inconsistent: {} -> {}",
-                            rollback_err,
-                            final_name1.display(),
-                            path1.display()
-                        );
-                    }
-                }
-                if let Err(rollback_err) = Self::handle_rename(&tmp_name2, &path2) {
-                    if DEBUG_MODE {
-                        eprintln!(
-                            "rollback failed: {}. Files may be inconsistent: {} -> {}",
-                            rollback_err,
-                            tmp_name2.display(),
-                            path2.display()
-                        );
-                    }
-                }
-                return Err(e);
-            }
-
-            Ok(())
-        }
-    }
-
-    /// Handle single rename operation and process possible errors
-    ///
-    /// ### Parameters
-    /// * `from` - Original file path
-    /// * `to` - Target file path
-    ///
-    /// ### Return Value
-    /// Returns `Ok(())` for success, `Err(RenameError)` for specific error
-    fn handle_rename(from: &Path, to: &Path) -> Result<(), RenameError> {
-        match std::fs::rename(from, to) {
-            Ok(_) => Ok(()),
-            Err(e) => Err(RenameError::from(e)),
-        }
+fn rollback_failed(operation: &RenameError, rollback: &RenameError) -> RenameError {
+    RenameError::RollbackFailed {
+        operation: operation.to_string(),
+        rollback: rollback.to_string(),
     }
 }

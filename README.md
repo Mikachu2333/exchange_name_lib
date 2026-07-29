@@ -1,78 +1,66 @@
-# Name Exchanger Library (Rust)
+# Name Exchanger Library
 
-A cross-platform library for atomically exchanging names of two files or directories, written in Rust.
+跨平台 Rust 库，用于交换两个文件、目录或符号链接的名称，提供 Rust 与 C ABI。
 
-一个使用Rust编写的跨平台库，用于原子性地交换两个文件或目录的名称。
+> 每一步重命名在同一文件系统内是原子的，但完整交换由三步组成，不是崩溃安全的文件系统事务。进程崩溃、断电或其他进程同时修改相关路径时，仍可能留下中间状态。
 
-## Overview 概述
-
-This library provides safe and atomic file/directory name exchanges through exposed C-compatible interfaces. It can be called from other languages like C/C++, Python, etc.
-
-该库通过暴露的 C 兼容接口提供安全且原子性的文件/目录名称交换功能。可以从C/C++、Python等其他语言调用。
-
-## Usage 使用方法
-
-### C Interface
-
-```c
-#include <stdint.h>
-
-/// Exchange names of two files or directories
-/// 
-/// @param path1 - First file or directory path
-/// @param path2 - Second file or directory path
-/// @param preserve_ext - true: keep each file extension, false: swap full names including extension
-/// @return 0 for success, non-zero values for errors:
-///         0 - Success
-///         1 - File does not exist
-///         2 - Permission denied
-///         3 - Target file already exists
-///         4 - Two paths refer to the same file
-///         5 - Invalid path (e.g. non-UTF-8)
-///       255 - Unknown error
-int32_t exchange(const char* path1, const char* path2, bool preserve_ext);
-```
-
-### Rust Interface
+## Rust API
 
 ```rust
+use exchange_name_lib::exchange_rs;
 use std::path::Path;
 
-/// Exchange names of two files or directories
-/// 
-/// # Arguments
-/// * `path1` - First file or directory path
-/// * `path2` - Second file or directory path
-/// * `preserve_ext` - true: keep each file extension, false: swap full names including extension
-/// 
-/// # Returns
-/// * `Ok(())` - Success
-/// * `Err(RenameError)` - Error 
-/// 
-/// ## `RenameError` enum
-/// ```rust
-/// pub enum RenameError {
-///     PermissionDenied,
-///     AlreadyExists,
-///     NotExists,
-///     SamePath,
-///     InvalidPath(String),
-///     Unknown(String),
-/// }
-/// ```
-fn exchange_rs(path1: &Path, path2: &Path, preserve_ext: bool) -> Result<(), RenameError>;
+exchange_rs(Path::new("alpha.txt"), Path::new("beta.log"), false)?;
+# Ok::<(), exchange_name_lib::RenameError>(())
 ```
 
-## Other 其它注意事项
+`preserve_ext = true` 时，普通文件保留各自扩展名，仅交换文件名主体。目录和符号链接交换完整名称。
 
-Use `cargo rustc --crate-type staticlib -- --print native-static-libs` to see which libs are requested by this lib.
+## C API
 
-用 `cargo rustc --crate-type staticlib -- --print native-static-libs` 命令查看需要引入哪些库才能正常编译。
+使用仓库中的 [`exchange_name_lib.h`](exchange_name_lib.h)。路径必须是 UTF-8；推荐使用带显式长度的 `exchange_n`。旧接口 `exchange` 要求指针指向 NUL 结尾字符串，库无法验证缓冲区边界。
 
-## Example 示例
+```c
+#include "exchange_name_lib.h"
 
-Ref to 参考
+int32_t result = exchange("alpha.txt", "beta.log", 0);
+```
 
-1. [name_exchanger](https://github.com/Mikachu2333/name_exchanger)
+错误码：
 
-2. [rs-NameExchanger](https://github.com/Mikachu2333/rs-NameExchanger)
+| 值 | 含义 |
+|---:|---|
+| 0 | 成功 |
+| 1 | 路径不存在 |
+| 2 | 权限不足或只读文件系统 |
+| 3 | 目标已存在 |
+| 4 | 两个路径指向同一项 |
+| 5 | 路径、UTF-8 或布尔参数无效 |
+| 6 | 不支持的特殊文件类型 |
+| 7 | 操作与回滚均失败，可能需要人工恢复 |
+| 255 | 未知错误或捕获到 panic |
+
+## 行为与限制
+
+- 不裁剪路径空白，也不解析 shell 引号。
+- 不解引用最终路径组件的符号链接。
+- 拒绝交换互为祖先与后代的目录，避免中途路径失效。
+- 进程内调用串行执行，以避免本库线程之间互相干扰；这不能锁定其他进程。
+- 两个条目及临时目录必须位于允许重命名的同一文件系统范围内。
+- Unix Rust API 支持非 UTF-8 路径；C API 仅接受 UTF-8。
+- 库不包含 GUI，因此 GUI 布局检查不适用。
+
+## 构建与验证
+
+```text
+cargo fmt --all -- --check
+cargo clippy --all-targets -- -D warnings
+cargo test --all-targets
+cargo package
+```
+
+Windows MSVC 双架构构建：
+
+```powershell
+pwsh -File ./build.ps1
+```
