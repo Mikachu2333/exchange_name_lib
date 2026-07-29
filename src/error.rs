@@ -1,6 +1,5 @@
 use std::{fmt, io, path::PathBuf};
 
-/// Renaming failure.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RenameError {
     PermissionDenied,
@@ -9,17 +8,11 @@ pub enum RenameError {
     SamePath,
     InvalidPath(String),
     UnsupportedFileType(PathBuf),
-    /// The requested operation failed and at least one rollback operation also failed.
-    /// The filesystem may require manual recovery.
-    RollbackFailed {
-        operation: String,
-        rollback: String,
-    },
+    RollbackFailed { operation: String, rollback: String },
     Unknown(String),
 }
 
 impl RenameError {
-    /// Map errors to stable C API return codes.
     #[must_use]
     pub const fn to_code(&self) -> i32 {
         match self {

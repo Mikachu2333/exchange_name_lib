@@ -50,6 +50,20 @@ int32_t result = exchange("alpha.txt", "beta.log", 0);
 - Unix Rust API 支持非 UTF-8 路径；C API 仅接受 UTF-8。
 - 库不包含 GUI，因此 GUI 布局检查不适用。
 
+## 架构
+
+```text
+lib.rs          公共 Rust API
+ffi.rs          C ABI、输入校验与 panic 隔离
+resolver.rs     路径展开和解析
+entry.rs        文件系统条目及名称组件
+plan.rs         交换计划构建与不变量验证
+transaction.rs  重命名、回滚和进程内同步
+error.rs        公共错误模型与 FFI 错误码
+```
+
+核心流程：`resolve → inspect → plan → execute/rollback`。所有 `unsafe` 均隔离在 `ffi.rs`。
+
 ## 构建与验证
 
 ```text

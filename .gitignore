@@ -6,8 +6,5 @@ target/**
 
 version.h
 *.lib
-tests/*
-test/*
-
 
 .vscode/settings.json
