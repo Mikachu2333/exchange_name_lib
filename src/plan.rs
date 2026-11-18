@@ -91,6 +91,19 @@ fn ensure_available(
         return Ok(());
     }
     match fs::symlink_metadata(target) {
+        #[cfg(windows)]
+        Ok(_) => {
+            let name = crate::windows::entry_name(target)?;
+            for source in [first, second] {
+                if target.parent() == Some(&source.parent)
+                    && name == crate::windows::entry_name(&source.path)?
+                {
+                    return Ok(());
+                }
+            }
+            Err(RenameError::AlreadyExists)
+        }
+        #[cfg(not(windows))]
         Ok(_) => Err(RenameError::AlreadyExists),
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
         Err(error) => Err(error.into()),

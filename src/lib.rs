@@ -8,6 +8,8 @@ mod ffi;
 mod plan;
 mod resolver;
 mod transaction;
+#[cfg(windows)]
+mod windows;
 
 pub use error::RenameError;
 pub use ffi::{exchange, exchange_n};

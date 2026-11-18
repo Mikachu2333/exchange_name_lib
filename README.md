@@ -62,7 +62,7 @@ transaction.rs  重命名、回滚和进程内同步
 error.rs        公共错误模型与 FFI 错误码
 ```
 
-核心流程：`resolve → inspect → plan → execute/rollback`。所有 `unsafe` 均隔离在 `ffi.rs`。
+核心流程：`resolve → inspect → plan → execute/rollback`。`ffi.rs` 处理 C ABI，`windows.rs` 查询 Windows 目录项的实际名称。
 
 ## 构建与验证
 

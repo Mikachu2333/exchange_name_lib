@@ -39,6 +39,43 @@ fn preserves_file_extensions() {
     assert_eq!(read(&dir.path().join("alpha.ext2")), "B");
 }
 
+#[cfg(windows)]
+#[test]
+fn preserves_extension_spelling_on_case_insensitive_volumes() {
+    let root = TempDir::new().unwrap();
+    let first = root.path().join("alpha.TXT");
+    let second = root.path().join("beta.txt");
+    write(&first, "A");
+    write(&second, "B");
+    exchange_rs(&first, &second, true).unwrap();
+    assert_eq!(read(&root.path().join("beta.TXT")), "A");
+    assert_eq!(read(&root.path().join("alpha.txt")), "B");
+    let names: Vec<_> = fs::read_dir(root.path())
+        .unwrap()
+        .map(|item| item.unwrap().file_name())
+        .collect();
+    assert!(names.contains(&"beta.TXT".into()));
+    assert!(names.contains(&"alpha.txt".into()));
+}
+
+#[test]
+fn a_third_hard_link_still_counts_as_an_occupied_target() {
+    let root = TempDir::new().unwrap();
+    let first = root.path().join("alpha.txt");
+    let second = root.path().join("beta.log");
+    let occupied = root.path().join("beta.txt");
+    write(&first, "A");
+    write(&second, "B");
+    fs::hard_link(&second, &occupied).unwrap();
+    assert_eq!(
+        exchange_rs(&first, &second, true),
+        Err(RenameError::AlreadyExists)
+    );
+    assert_eq!(read(&occupied), "B");
+    assert_eq!(read(&first), "A");
+    assert_eq!(read(&second), "B");
+}
+
 #[test]
 fn preserves_spaces_and_quotes_in_names() {
     let dir = TempDir::new().expect("create temp dir");
