@@ -13,7 +13,7 @@ pub(crate) enum EntryKind {
     Symlink,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub(crate) struct Entry {
     pub(crate) path: PathBuf,
     pub(crate) parent: PathBuf,
@@ -21,11 +21,15 @@ pub(crate) struct Entry {
     pub(crate) stem: OsString,
     pub(crate) extension: Option<OsString>,
     pub(crate) kind: EntryKind,
+    #[cfg(unix)]
+    pub(crate) identity: (u64, u64),
+    #[cfg(not(unix))]
+    pub(crate) identity: same_file::Handle,
 }
 
 impl Entry {
-    pub(crate) fn inspect(path: PathBuf) -> Result<Self, RenameError> {
-        let file_type = fs::symlink_metadata(&path)?.file_type();
+    pub(crate) fn inspect(path: PathBuf, metadata: &fs::Metadata) -> Result<Self, RenameError> {
+        let file_type = metadata.file_type();
         let kind = if file_type.is_symlink() {
             EntryKind::Symlink
         } else if file_type.is_file() {
@@ -50,6 +54,25 @@ impl Entry {
             (file_name.clone(), None)
         };
 
+        #[cfg(unix)]
+        let identity = {
+            use std::os::unix::fs::MetadataExt;
+            (metadata.dev(), metadata.ino())
+        };
+        #[cfg(windows)]
+        let identity = {
+            use std::os::windows::fs::OpenOptionsExt;
+            use windows_sys::Win32::Storage::FileSystem::{
+                FILE_FLAG_BACKUP_SEMANTICS, FILE_FLAG_OPEN_REPARSE_POINT, FILE_READ_ATTRIBUTES,
+            };
+            let file = fs::File::options()
+                .access_mode(FILE_READ_ATTRIBUTES)
+                .custom_flags(FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT)
+                .open(&path)?;
+            same_file::Handle::from_file(file)?
+        };
+        #[cfg(not(any(unix, windows)))]
+        let identity = same_file::Handle::from_path(&path)?;
         Ok(Self {
             path,
             parent,
@@ -57,6 +80,7 @@ impl Entry {
             stem,
             extension,
             kind,
+            identity,
         })
     }
 

@@ -1,7 +1,5 @@
 use std::{fs, path::PathBuf};
 
-use same_file::is_same_file;
-
 use crate::{
     entry::{compose_file_name, Entry, EntryKind},
     resolver::{current_base_dir, resolve},
@@ -27,17 +25,13 @@ impl ExchangePlan {
         preserve_ext: bool,
     ) -> Result<Self, RenameError> {
         let base_dir = current_base_dir()?;
-        let first_path = resolve(first_path, &base_dir)?.into_existing()?;
-        let second_path = resolve(second_path, &base_dir)?.into_existing()?;
+        let first = resolve(first_path, &base_dir)?.into_entry()?;
+        let second = resolve(second_path, &base_dir)?.into_entry()?;
 
-        if first_path == second_path
-            || is_same_file(&first_path, &second_path).map_err(RenameError::from)?
-        {
+        if first.path == second.path || first.identity == second.identity {
             return Err(RenameError::SamePath);
         }
 
-        let first = Entry::inspect(first_path)?;
-        let second = Entry::inspect(second_path)?;
         reject_nested_directories(&first, &second)?;
 
         let first_target = target_for(&first, &second, preserve_ext);

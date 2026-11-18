@@ -94,6 +94,84 @@ fn rejects_same_file() {
 }
 
 #[test]
+fn rejects_hard_links_to_the_same_file() {
+    let root = TempDir::new().unwrap();
+    let first = root.path().join("first");
+    let alias = root.path().join("alias");
+    write(&first, "original");
+    fs::hard_link(&first, &alias).unwrap();
+    assert_eq!(
+        exchange_rs(&first, &alias, false),
+        Err(RenameError::SamePath)
+    );
+}
+
+#[cfg(any(unix, windows))]
+#[test]
+fn exchanges_link_entries_even_when_targets_match_or_are_missing() {
+    #[cfg(unix)]
+    use std::os::unix::fs::symlink;
+    #[cfg(windows)]
+    use std::os::windows::fs::symlink_file as symlink;
+
+    let root = TempDir::new().unwrap();
+    let target = root.path().join("target");
+    let first = root.path().join("one");
+    let second = root.path().join("two");
+    write(&target, "original");
+    let created = symlink("target", &first);
+    #[cfg(windows)]
+    if created
+        .as_ref()
+        .is_err_and(|error| error.raw_os_error() == Some(1314))
+    {
+        return;
+    }
+    created.unwrap();
+    symlink(&target, &second).unwrap();
+    exchange_rs(&first, &second, false).unwrap();
+    assert_eq!(fs::read_link(&first).unwrap(), target);
+    assert_eq!(fs::read_link(&second).unwrap(), Path::new("target"));
+    let dangling = root.path().join("dangling");
+    symlink("absent", &dangling).unwrap();
+    exchange_rs(&first, &dangling, false).unwrap();
+    assert_eq!(fs::read_link(&first).unwrap(), Path::new("absent"));
+    assert_eq!(read(&dangling), "original");
+}
+
+#[cfg(unix)]
+#[test]
+fn rejects_a_fifo_without_waiting_for_a_writer() {
+    let root = TempDir::new().unwrap();
+    let fifo = root.path().join("fifo");
+    let file = root.path().join("file");
+    write(&file, "original");
+    assert!(std::process::Command::new("mkfifo")
+        .arg(&fifo)
+        .status()
+        .unwrap()
+        .success());
+    let (sender, receiver) = std::sync::mpsc::channel();
+    std::thread::scope(|scope| {
+        scope.spawn(|| sender.send(exchange_rs(&fifo, &file, false)).unwrap());
+        let result = receiver.recv_timeout(std::time::Duration::from_secs(5));
+        if result.is_err() {
+            let _writer = fs::File::options()
+                .read(true)
+                .write(true)
+                .open(&fifo)
+                .unwrap();
+            receiver.recv().unwrap().unwrap_err();
+            panic!("identity check waited for a FIFO writer");
+        }
+        assert!(matches!(
+            result.unwrap(),
+            Err(RenameError::UnsupportedFileType(_))
+        ));
+    });
+}
+
+#[test]
 fn concurrent_swaps_of_the_same_pair_serialize() {
     let root = TempDir::new().unwrap();
     let first = root.path().join("first");

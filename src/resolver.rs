@@ -7,24 +7,18 @@ use std::{
 
 use crate::RenameError;
 
-pub(crate) enum ResolvedPath {
-    Existing(PathBuf),
-    Missing(PathBuf),
+pub(crate) struct ResolvedPath {
+    path: PathBuf,
+    metadata: Option<fs::Metadata>,
 }
 
 impl ResolvedPath {
-    pub(crate) fn into_existing(self) -> Result<PathBuf, RenameError> {
-        match self {
-            Self::Existing(path) => Ok(path),
-            Self::Missing(_) => Err(RenameError::NotExists),
-        }
+    pub(crate) fn into_entry(self) -> Result<crate::entry::Entry, RenameError> {
+        crate::entry::Entry::inspect(self.path, &self.metadata.ok_or(RenameError::NotExists)?)
     }
 
     pub(crate) fn into_legacy_tuple(self) -> (bool, PathBuf) {
-        match self {
-            Self::Existing(path) => (true, path),
-            Self::Missing(path) => (false, path),
-        }
+        (self.metadata.is_some(), self.path)
     }
 }
 
@@ -35,7 +29,10 @@ pub(crate) fn current_base_dir() -> Result<PathBuf, RenameError> {
 /// Resolves parents while preserving a symbolic link in the final component.
 pub(crate) fn resolve(path: &Path, base_dir: &Path) -> Result<ResolvedPath, RenameError> {
     if path.as_os_str().is_empty() {
-        return Ok(ResolvedPath::Missing(path.to_path_buf()));
+        return Ok(ResolvedPath {
+            path: path.to_path_buf(),
+            metadata: None,
+        });
     }
 
     let expanded = expand_home(path)?;
@@ -48,13 +45,15 @@ pub(crate) fn resolve(path: &Path, base_dir: &Path) -> Result<ResolvedPath, Rena
     let absolute = normalize_lexically(&absolute)?;
     let resolved = resolve_parent(absolute)?;
 
-    match fs::symlink_metadata(&resolved) {
-        Ok(_) => Ok(ResolvedPath::Existing(resolved)),
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
-            Ok(ResolvedPath::Missing(resolved))
-        }
-        Err(error) => Err(error.into()),
-    }
+    let metadata = match fs::symlink_metadata(&resolved) {
+        Ok(metadata) => Some(metadata),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
+        Err(error) => return Err(error.into()),
+    };
+    Ok(ResolvedPath {
+        path: resolved,
+        metadata,
+    })
 }
 
 fn resolve_parent(path: PathBuf) -> Result<PathBuf, RenameError> {

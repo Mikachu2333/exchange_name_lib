@@ -26,8 +26,13 @@ strip = true
 embed-resource = "3.0.12"
 
 [dependencies]
-same-file = "1.0.6"
 tempfile = "3.27.0"
+
+[target.'cfg(not(unix))'.dependencies]
+same-file = "1.0.6"
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = ["Win32_Storage_FileSystem"] }
 
 [lints.rust]
 unsafe_op_in_unsafe_fn = "deny"
