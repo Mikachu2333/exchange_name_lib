@@ -42,3 +42,35 @@ fn legacy_interface_exchanges_files() {
     // SAFETY: CString pointers are valid and NUL-terminated for this call.
     assert_eq!(unsafe { exchange(first.as_ptr(), second.as_ptr(), 0) }, 0);
 }
+
+#[test]
+fn both_c_interfaces_exchange_utf8_emoji_names() {
+    let root = TempDir::new().unwrap();
+    let first_path = root.path().join("👩🏽‍💻.txt");
+    let second_path = root.path().join("🇨🇳.📝");
+    fs::write(&first_path, b"first").unwrap();
+    fs::write(&second_path, b"second").unwrap();
+    let first = first_path.to_str().unwrap().as_bytes();
+    let second = second_path.to_str().unwrap().as_bytes();
+
+    assert_eq!(
+        unsafe {
+            exchange_n(
+                first.as_ptr(),
+                first.len(),
+                second.as_ptr(),
+                second.len(),
+                0,
+            )
+        },
+        0
+    );
+    assert_eq!(fs::read(&first_path).unwrap(), b"second");
+    assert_eq!(fs::read(&second_path).unwrap(), b"first");
+
+    let first = CString::new(first).unwrap();
+    let second = CString::new(second).unwrap();
+    assert_eq!(unsafe { exchange(first.as_ptr(), second.as_ptr(), 0) }, 0);
+    assert_eq!(fs::read(&first_path).unwrap(), b"first");
+    assert_eq!(fs::read(&second_path).unwrap(), b"second");
+}

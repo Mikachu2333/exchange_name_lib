@@ -39,6 +39,22 @@ fn preserves_file_extensions() {
     assert_eq!(read(&dir.path().join("alpha.ext2")), "B");
 }
 
+#[test]
+fn preserves_emoji_sequences_in_names_and_extensions() {
+    let root = TempDir::new().unwrap();
+    let folder = root.path().join("📂");
+    fs::create_dir(&folder).unwrap();
+    let first = folder.join("👩🏽‍💻.📝");
+    let second = folder.join("🇨🇳.txt");
+    write(&first, "A");
+    write(&second, "B");
+
+    exchange_rs(&first, &second, true).unwrap();
+
+    assert_eq!(read(&folder.join("🇨🇳.📝")), "A");
+    assert_eq!(read(&folder.join("👩🏽‍💻.txt")), "B");
+}
+
 #[cfg(windows)]
 #[test]
 fn preserves_extension_spelling_on_case_insensitive_volumes() {
