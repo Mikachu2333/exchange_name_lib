@@ -44,8 +44,9 @@ pub(crate) fn resolve(path: &Path, base_dir: &Path) -> Result<ResolvedPath, Rena
     } else {
         base_dir.join(expanded)
     };
-    let normalized = normalize_lexically(&absolute)?;
-    let resolved = resolve_parent(normalized)?;
+    #[cfg(windows)]
+    let absolute = normalize_lexically(&absolute)?;
+    let resolved = resolve_parent(absolute)?;
 
     match fs::symlink_metadata(&resolved) {
         Ok(_) => Ok(ResolvedPath::Existing(resolved)),
@@ -57,11 +58,12 @@ pub(crate) fn resolve(path: &Path, base_dir: &Path) -> Result<ResolvedPath, Rena
 }
 
 fn resolve_parent(path: PathBuf) -> Result<PathBuf, RenameError> {
-    let (Some(parent), Some(name)) = (path.parent(), path.file_name()) else {
-        return Ok(path);
+    let result = match (path.parent(), path.file_name()) {
+        (Some(parent), Some(name)) => parent.canonicalize().map(|parent| parent.join(name)),
+        _ => path.canonicalize(),
     };
-    match parent.canonicalize() {
-        Ok(parent) => Ok(parent.join(name)),
+    match result {
+        Ok(resolved) => Ok(resolved),
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(path),
         Err(error) => Err(error.into()),
     }
@@ -82,6 +84,7 @@ fn expand_home(path: &Path) -> Result<PathBuf, RenameError> {
     Ok(expanded)
 }
 
+#[cfg(windows)]
 fn normalize_lexically(path: &Path) -> Result<PathBuf, RenameError> {
     let mut result = PathBuf::new();
     for component in path.components() {

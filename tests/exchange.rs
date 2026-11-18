@@ -128,3 +128,38 @@ fn rejects_nested_directories_without_mutation() {
     ));
     assert!(child.is_dir());
 }
+
+#[cfg(unix)]
+#[test]
+fn resolves_parent_components_in_filesystem_order() {
+    use exchange_name_lib::resolve_path_rs;
+    use std::os::unix::fs::symlink;
+
+    let root = TempDir::new().unwrap();
+    let base = root.path();
+    fs::create_dir_all(base.join("real/child")).unwrap();
+    symlink("real/child", base.join("link")).unwrap();
+    write(&base.join("name"), "untouched");
+    write(&base.join("real/name"), "selected");
+    write(&base.join("real/other"), "other");
+    exchange_rs(&base.join("link/../name"), &base.join("real/other"), false).unwrap();
+    assert_eq!(read(&base.join("name")), "untouched");
+    assert_eq!(read(&base.join("real/other")), "selected");
+    assert_eq!(
+        resolve_path_rs(Path::new("link/.."), base).unwrap(),
+        (true, base.join("real").canonicalize().unwrap())
+    );
+    assert!(
+        !resolve_path_rs(Path::new("missing/../name"), base)
+            .unwrap()
+            .0
+    );
+    assert_eq!(
+        exchange_rs(
+            &base.join("missing/../name"),
+            &base.join("real/other"),
+            false
+        ),
+        Err(RenameError::NotExists)
+    );
+}
