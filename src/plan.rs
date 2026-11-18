@@ -69,17 +69,13 @@ fn reject_nested_directories(first: &Entry, second: &Entry) -> Result<(), Rename
 }
 
 fn target_for(entry: &Entry, other: &Entry, preserve_ext: bool) -> PathBuf {
-    let name = if entry.kind == EntryKind::File && other.kind == EntryKind::File {
-        let extension = if preserve_ext {
-            entry.extension.as_deref()
-        } else {
-            other.extension.as_deref()
-        };
-        compose_file_name(&other.stem, extension)
+    if preserve_ext && entry.kind == EntryKind::File && other.kind == EntryKind::File {
+        entry
+            .parent
+            .join(compose_file_name(&other.stem, entry.extension.as_deref()))
     } else {
-        other.file_name.clone()
-    };
-    entry.parent.join(name)
+        entry.parent.join(&other.file_name)
+    }
 }
 
 fn ensure_available(

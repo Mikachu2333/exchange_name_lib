@@ -20,6 +20,9 @@ fn execute_with(
     plan: &ExchangePlan,
     mut rename: impl FnMut(&Path, &Path) -> Result<(), RenameError>,
 ) -> Result<(), RenameError> {
+    if plan.first.source == plan.first.target && plan.second.source == plan.second.target {
+        return Ok(());
+    }
     let temp_parent = plan.second.source.parent().ok_or_else(|| {
         RenameError::InvalidPath(format!(
             "path has no parent: {}",
@@ -88,6 +91,20 @@ fn lock_operations() -> MutexGuard<'static, ()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn unchanged_names_skip_renaming_after_validation() {
+        let root = tempfile::tempdir().unwrap();
+        let first = root.path().join("report.csv");
+        let second = root.path().join("report.log");
+        fs::write(&first, b"csv").unwrap();
+        assert_eq!(exchange(&first, &second, true), Err(RenameError::NotExists));
+        fs::write(&second, b"log").unwrap();
+        let plan = ExchangePlan::build(&first, &second, true).unwrap();
+        execute_with(&plan, |_, _| panic!("unexpected rename")).unwrap();
+        assert_eq!(fs::read(&first).unwrap(), b"csv");
+        assert_eq!(fs::read(&second).unwrap(), b"log");
+    }
 
     #[test]
     fn failed_renames_preserve_both_entries() {
