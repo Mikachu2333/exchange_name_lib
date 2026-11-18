@@ -12,7 +12,9 @@ mod transaction;
 mod windows;
 
 pub use error::RenameError;
-pub use ffi::{exchange, exchange_n};
+#[allow(deprecated)]
+pub use ffi::exchange;
+pub use ffi::exchange_n;
 
 /// Swaps names of two files, directories, or symbolic links.
 ///

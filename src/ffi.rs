@@ -13,6 +13,7 @@ use crate::{exchange_rs, RenameError};
 ///
 /// Both pointers must address readable NUL-terminated strings that remain immutable and valid for
 /// this call. `preserve_ext` must be `0` or `1`.
+#[deprecated(since = "2.4.0", note = "Please use `exchange_n` as alternate.")]
 #[no_mangle]
 pub unsafe extern "C" fn exchange(
     path1: *const c_char,

@@ -1,13 +1,18 @@
 use std::{ffi::CString, fs};
 
-use exchange_name_lib::{exchange, exchange_n};
+#[allow(deprecated)]
+pub use exchange_name_lib::exchange;
+pub use exchange_name_lib::exchange_n;
 use tempfile::TempDir;
 
 #[test]
 fn rejects_null_and_invalid_utf8() {
     // SAFETY: Null pointers verify validation before dereference.
     assert_eq!(
-        unsafe { exchange(std::ptr::null(), std::ptr::null(), 0) },
+        unsafe {
+            #[allow(deprecated)]
+            exchange(std::ptr::null(), std::ptr::null(), 0)
+        },
         5
     );
 
@@ -40,7 +45,13 @@ fn legacy_interface_exchanges_files() {
     let second = CString::new(second.to_string_lossy().as_bytes()).expect("CString");
 
     // SAFETY: CString pointers are valid and NUL-terminated for this call.
-    assert_eq!(unsafe { exchange(first.as_ptr(), second.as_ptr(), 0) }, 0);
+    assert_eq!(
+        unsafe {
+            #[allow(deprecated)]
+            exchange(first.as_ptr(), second.as_ptr(), 0)
+        },
+        0
+    );
 }
 
 #[test]
@@ -70,7 +81,13 @@ fn both_c_interfaces_exchange_utf8_emoji_names() {
 
     let first = CString::new(first).unwrap();
     let second = CString::new(second).unwrap();
-    assert_eq!(unsafe { exchange(first.as_ptr(), second.as_ptr(), 0) }, 0);
+    assert_eq!(
+        unsafe {
+            #[allow(deprecated)]
+            exchange(first.as_ptr(), second.as_ptr(), 0)
+        },
+        0
+    );
     assert_eq!(fs::read(&first_path).unwrap(), b"first");
     assert_eq!(fs::read(&second_path).unwrap(), b"second");
 }
