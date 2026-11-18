@@ -20,8 +20,7 @@ pub use ffi::{exchange, exchange_n};
 ///
 /// Returns [`RenameError`] when validation, renaming, or rollback fails.
 pub fn exchange_rs(path1: &Path, path2: &Path, preserve_ext: bool) -> Result<(), RenameError> {
-    let plan = plan::ExchangePlan::build(path1, path2, preserve_ext)?;
-    transaction::execute(&plan)
+    transaction::exchange(path1, path2, preserve_ext)
 }
 
 /// Resolves a path without dereferencing its final symbolic-link component.

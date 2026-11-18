@@ -94,6 +94,28 @@ fn rejects_same_file() {
 }
 
 #[test]
+fn concurrent_swaps_of_the_same_pair_serialize() {
+    let root = TempDir::new().unwrap();
+    let first = root.path().join("first");
+    let second = root.path().join("second");
+    write(&first, "A");
+    write(&second, "B");
+    let start = std::sync::Barrier::new(4);
+    std::thread::scope(|scope| {
+        for _ in 0..4 {
+            scope.spawn(|| {
+                start.wait();
+                for _ in 0..8 {
+                    exchange_rs(&first, &second, false).unwrap();
+                }
+            });
+        }
+    });
+    assert_eq!(read(&first), "A");
+    assert_eq!(read(&second), "B");
+}
+
+#[test]
 fn rejects_nested_directories_without_mutation() {
     let dir = TempDir::new().expect("create temp dir");
     let parent = dir.path().join("parent");

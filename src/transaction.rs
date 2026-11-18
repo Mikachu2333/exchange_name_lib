@@ -10,9 +10,10 @@ use crate::{plan::ExchangePlan, RenameError};
 
 static OPERATION_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
 
-pub(crate) fn execute(plan: &ExchangePlan) -> Result<(), RenameError> {
+pub(crate) fn exchange(first: &Path, second: &Path, preserve_ext: bool) -> Result<(), RenameError> {
     let _guard = lock_operations();
-    execute_with(plan, |from, to| fs::rename(from, to).map_err(Into::into))
+    let plan = ExchangePlan::build(first, second, preserve_ext)?;
+    execute_with(&plan, |from, to| fs::rename(from, to).map_err(Into::into))
 }
 
 fn execute_with(
